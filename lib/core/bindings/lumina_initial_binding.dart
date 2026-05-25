@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
 
-import 'package:lumina_library/features/auth/presentation/controllers/auth_role_controller.dart';
+import 'package:lumina_library/features/auth/data/controllers/auth_role_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/cart/library_cart_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_catalog_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';

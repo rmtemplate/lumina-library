@@ -1,4 +1,6 @@
 import 'package:get/get.dart';
+import 'package:lumina_library/features/auth/presentation/pages/login/library_login_page.dart';
+import 'package:lumina_library/features/auth/presentation/pages/register/library_register_page.dart';
 
 import 'package:lumina_library/features/mahasiswa/presentation/pages/home/library_home_page.dart';
 import 'package:lumina_library/features/staff/presentation/pages/home/library_staff_home_page.dart';
@@ -38,6 +40,21 @@ class LuminaRoleRouter {
     Get.offAll(
       () => const LibraryStaffHomePage(),
       transition: Transition.fadeIn,
+    );
+  }
+
+  static void goToLogin() {
+    Get.offAll(
+      () =>  LibraryLoginPage(
+        logoAssetPath: 'images/logo/lumina-logo.webp',
+        onRegisterTap: () {
+          Get.to(
+            () => const LibraryRegisterPage(
+              logoAssetPath: 'images/logo/lumina-logo.webp',
+            ),
+          );
+        },
+      )
     );
   }
 }

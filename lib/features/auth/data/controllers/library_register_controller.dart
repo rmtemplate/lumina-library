@@ -1,0 +1,334 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+
+import '../../data/models/library_register_models.dart';
+
+class LibraryRegisterController extends GetxController {
+  final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
+  final TextEditingController fullnameController = TextEditingController();
+  final TextEditingController emailController = TextEditingController();
+  final TextEditingController phoneController = TextEditingController();
+  final TextEditingController institutionController = TextEditingController();
+  final TextEditingController majorController = TextEditingController();
+  final TextEditingController levelController = TextEditingController();
+  final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController =
+      TextEditingController();
+
+  final RxString selectedProfileTypeId = 'mahasiswa'.obs;
+  final RxBool isPasswordVisible = false.obs;
+  final RxBool isConfirmPasswordVisible = false.obs;
+  final RxBool isAgreementChecked = false.obs;
+  final RxBool isLoading = false.obs;
+
+  static const List<LibraryRegisterProfileTypeModel> profileTypes = [
+    LibraryRegisterProfileTypeModel(
+      id: 'tk_paud',
+      label: 'TK / PAUD',
+      description: 'Untuk peserta didik usia dini.',
+      institutionLabel: 'Nama Sekolah / Lembaga',
+      majorLabel: 'Program',
+      levelLabel: 'Kelas / Kelompok',
+      requiresInstitution: true,
+      requiresMajor: false,
+      requiresLevel: false,
+    ),
+    LibraryRegisterProfileTypeModel(
+      id: 'sd_mi',
+      label: 'SD / MI',
+      description: 'Untuk siswa sekolah dasar.',
+      institutionLabel: 'Nama Sekolah',
+      majorLabel: 'Jurusan',
+      levelLabel: 'Kelas',
+      requiresInstitution: true,
+      requiresMajor: false,
+      requiresLevel: true,
+    ),
+    LibraryRegisterProfileTypeModel(
+      id: 'smp_mts',
+      label: 'SMP / MTs',
+      description: 'Untuk siswa tingkat menengah pertama.',
+      institutionLabel: 'Nama Sekolah',
+      majorLabel: 'Jurusan',
+      levelLabel: 'Kelas',
+      requiresInstitution: true,
+      requiresMajor: false,
+      requiresLevel: true,
+    ),
+    LibraryRegisterProfileTypeModel(
+      id: 'sma_smk_ma',
+      label: 'SMA / SMK / MA',
+      description: 'Untuk siswa tingkat menengah atas.',
+      institutionLabel: 'Nama Sekolah',
+      majorLabel: 'Jurusan',
+      levelLabel: 'Kelas',
+      requiresInstitution: true,
+      requiresMajor: true,
+      requiresLevel: true,
+    ),
+    LibraryRegisterProfileTypeModel(
+      id: 'mahasiswa',
+      label: 'Mahasiswa',
+      description: 'Untuk mahasiswa aktif perguruan tinggi.',
+      institutionLabel: 'Nama Kampus',
+      majorLabel: 'Program Studi / Jurusan',
+      levelLabel: 'Semester',
+      requiresInstitution: true,
+      requiresMajor: true,
+      requiresLevel: true,
+    ),
+    LibraryRegisterProfileTypeModel(
+      id: 'bekerja',
+      label: 'Sudah Bekerja',
+      description: 'Untuk pengguna yang sedang bekerja.',
+      institutionLabel: 'Nama Perusahaan / Instansi',
+      majorLabel: 'Divisi / Bidang',
+      levelLabel: 'Posisi / Jabatan',
+      requiresInstitution: false,
+      requiresMajor: false,
+      requiresLevel: false,
+    ),
+    LibraryRegisterProfileTypeModel(
+      id: 'umum',
+      label: 'Umum',
+      description: 'Untuk pengguna umum.',
+      institutionLabel: 'Instansi / Komunitas',
+      majorLabel: 'Bidang Minat',
+      levelLabel: 'Aktivitas Saat Ini',
+      requiresInstitution: false,
+      requiresMajor: false,
+      requiresLevel: false,
+    ),
+  ];
+
+  LibraryRegisterProfileTypeModel get selectedProfileType {
+    return profileTypes.firstWhere(
+      (item) => item.id == selectedProfileTypeId.value,
+      orElse: () => profileTypes.first,
+    );
+  }
+
+  String get fullname => fullnameController.text.trim();
+  String get email => emailController.text.trim();
+  String get phone => phoneController.text.trim();
+  String get institutionName => institutionController.text.trim();
+  String get majorName => majorController.text.trim();
+  String get currentLevel => levelController.text.trim();
+  String get password => passwordController.text;
+  String get confirmPassword => confirmPasswordController.text;
+
+  void setProfileType(String? value) {
+    if (value == null || value.isEmpty) return;
+
+    selectedProfileTypeId.value = value;
+
+    institutionController.clear();
+    majorController.clear();
+    levelController.clear();
+  }
+
+  void togglePasswordVisibility() {
+    isPasswordVisible.value = !isPasswordVisible.value;
+  }
+
+  void toggleConfirmPasswordVisibility() {
+    isConfirmPasswordVisible.value = !isConfirmPasswordVisible.value;
+  }
+
+  void setAgreementChecked(bool? value) {
+    isAgreementChecked.value = value ?? false;
+  }
+
+  String? validateFullname(String? value) {
+    final text = value?.trim() ?? '';
+
+    if (text.isEmpty) {
+      return 'Nama lengkap wajib diisi.';
+    }
+
+    if (text.length < 3) {
+      return 'Nama lengkap minimal 3 karakter.';
+    }
+
+    return null;
+  }
+
+  String? validateEmail(String? value) {
+    final text = value?.trim() ?? '';
+
+    if (text.isEmpty) {
+      return 'Email wajib diisi.';
+    }
+
+    if (!GetUtils.isEmail(text)) {
+      return 'Format email tidak valid.';
+    }
+
+    return null;
+  }
+
+  String? validatePhone(String? value) {
+    final text = value?.trim() ?? '';
+
+    if (text.isEmpty) return null;
+
+    if (text.length < 8) {
+      return 'Nomor telepon minimal 8 digit.';
+    }
+
+    return null;
+  }
+
+  String? validateInstitution(String? value) {
+    final profileType = selectedProfileType;
+    final text = value?.trim() ?? '';
+
+    if (!profileType.requiresInstitution) return null;
+
+    if (text.isEmpty) {
+      return '${profileType.institutionLabel} wajib diisi.';
+    }
+
+    return null;
+  }
+
+  String? validateMajor(String? value) {
+    final profileType = selectedProfileType;
+    final text = value?.trim() ?? '';
+
+    if (!profileType.requiresMajor) return null;
+
+    if (text.isEmpty) {
+      return '${profileType.majorLabel} wajib diisi.';
+    }
+
+    return null;
+  }
+
+  String? validateLevel(String? value) {
+    final profileType = selectedProfileType;
+    final text = value?.trim() ?? '';
+
+    if (!profileType.requiresLevel) return null;
+
+    if (text.isEmpty) {
+      return '${profileType.levelLabel} wajib diisi.';
+    }
+
+    return null;
+  }
+
+  String? validatePassword(String? value) {
+    final text = value ?? '';
+
+    if (text.isEmpty) {
+      return 'Password wajib diisi.';
+    }
+
+    if (text.length < 6) {
+      return 'Password minimal 6 karakter.';
+    }
+
+    return null;
+  }
+
+  String? validateConfirmPassword(String? value) {
+    final text = value ?? '';
+
+    if (text.isEmpty) {
+      return 'Konfirmasi password wajib diisi.';
+    }
+
+    if (text != password) {
+      return 'Konfirmasi password tidak sama.';
+    }
+
+    return null;
+  }
+
+  LibraryRegisterPayload buildPayload() {
+    final profileType = selectedProfileType;
+
+    return LibraryRegisterPayload(
+      fullname: fullname,
+      email: email,
+      phone: phone.isEmpty ? null : phone,
+      password: password,
+      profileTypeId: profileType.id,
+      profileTypeLabel: profileType.label,
+      institutionName: institutionName.isEmpty ? null : institutionName,
+      majorName: majorName.isEmpty ? null : majorName,
+      currentLevel: currentLevel.isEmpty ? null : currentLevel,
+    );
+  }
+
+  Future<void> submitRegister({
+    VoidCallback? onSuccess,
+  }) async {
+    final isValid = formKey.currentState?.validate() ?? false;
+
+    if (!isValid) return;
+
+    if (!isAgreementChecked.value) {
+      Get.snackbar(
+        'Persetujuan Dibutuhkan',
+        'Centang persetujuan untuk melanjutkan registrasi.',
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
+      );
+      return;
+    }
+
+    isLoading.value = true;
+
+    try {
+      final payload = buildPayload();
+
+      // TODO:
+      // Ganti simulasi ini dengan API register.
+      // Contoh:
+      // await api.post('/api/v1/auth/register', data: payload.toJson());
+      debugPrint('REGISTER_PAYLOAD: ${payload.toJson()}');
+
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+
+      if (onSuccess != null) {
+        onSuccess();
+        return;
+      }
+
+      Get.snackbar(
+        'Register Berhasil',
+        'Akun Anda berhasil dibuat.',
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
+      );
+    } catch (_) {
+      Get.snackbar(
+        'Register Gagal',
+        'Terjadi kesalahan saat membuat akun. Silakan coba lagi.',
+        snackPosition: SnackPosition.BOTTOM,
+        margin: const EdgeInsets.all(16),
+        duration: const Duration(seconds: 2),
+      );
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  @override
+  void onClose() {
+    fullnameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
+    institutionController.dispose();
+    majorController.dispose();
+    levelController.dispose();
+    passwordController.dispose();
+    confirmPasswordController.dispose();
+    super.onClose();
+  }
+}

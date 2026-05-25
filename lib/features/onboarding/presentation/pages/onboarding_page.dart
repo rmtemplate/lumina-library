@@ -80,7 +80,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   void _goToHome() {
-    LuminaRoleRouter.goToMahasiswaHome();
+    LuminaRoleRouter.goToLogin();
+    // LuminaRoleRouter.goToMahasiswaHome();
     // LuminaRoleRouter.goToStaffHome();
   }
 

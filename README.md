@@ -1,5 +1,15 @@
 # Lumina Library
 
+<p align="center">
+  <img src="assets/images/logo/lumina-logo.webp" width="180" alt="Lumina Library Logo"/>
+</p>
+
+<p align="center">
+  <b>Modern Digital Campus Library App</b><br>
+  Built with Flutter • GetX • Clean Architecture
+</p>
+
+
 **Lumina Library** adalah aplikasi perpustakaan modern berbasis Flutter yang dibuat untuk kebutuhan **Tugas Kuliah**. Aplikasi ini menyediakan alur penggunaan untuk dua role utama, yaitu **Mahasiswa** dan **Staff/Petugas Perpustakaan**.
 
 Project ini disusun menggunakan pendekatan struktur folder yang clean, scalable, dan reusable melalui pemisahan `core`, `shared`, dan `features`.
