@@ -68,5 +68,7 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Aplikasi membutuhkan akses kamera untuk scan QR peminjaman buku</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Aplikasi membutuhkan lokasi Anda untuk menampilkan rute ke perpustakaan.</string>
 </dict>
 </plist>

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/lumina_colors.dart';
-import '../../../core/theme/lumina_radius.dart';
-import '../../../core/theme/lumina_spacing.dart';
-import '../../../core/theme/lumina_text_styles.dart';
-import '../../models/navigation/bottom_nav_item_model.dart';
+import 'package:lumina_library/core/theme/lumina_colors.dart';
+import 'package:lumina_library/core/theme/lumina_radius.dart';
+import 'package:lumina_library/core/theme/lumina_spacing.dart';
+import 'package:lumina_library/core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/shared/models/navigation/bottom_nav_item_model.dart';
 
 class LuminaRoleBottomNavBar extends StatelessWidget {
   const LuminaRoleBottomNavBar({

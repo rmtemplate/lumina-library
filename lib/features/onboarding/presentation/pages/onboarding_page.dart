@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:lumina_library/features/staff/presentation/pages/library_staff_home_page.dart';
 
-import '../../../../core/theme/lumina_colors.dart';
-import '../../../../core/theme/lumina_radius.dart';
-import '../../../../core/theme/lumina_spacing.dart';
-import '../../../../core/theme/lumina_text_styles.dart';
-import '../../../mahasiswa/presentation/pages/library_home_page.dart';
+import 'package:lumina_library/core/theme/lumina_colors.dart';
+import 'package:lumina_library/core/theme/lumina_radius.dart';
+import 'package:lumina_library/core/theme/lumina_spacing.dart';
+import 'package:lumina_library/core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/core/routing/lumina_role_router.dart';
 
+import 'package:lumina_library/features/onboarding/presentation/models/onboarding_slide_model.dart';
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({
     super.key,
@@ -22,8 +21,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   int _currentIndex = 0;
 
-  static const List<_OnboardingSlideData> _slides = [
-    _OnboardingSlideData(
+  static const List<OnboardingSlideModel> _slides = [
+    OnboardingSlideModel(
       title: 'Akses Tanpa Batas',
       description:
           'Temukan ribuan koleksi buku digital dan jurnal akademik dari genggaman Anda.',
@@ -32,7 +31,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       imageSemanticLabel: 'Student reading digital books',
       accentColor: LuminaColors.primary,
     ),
-    _OnboardingSlideData(
+    OnboardingSlideModel(
       title: 'Pinjam dengan Mudah',
       description:
           'Gunakan fitur scan QR untuk proses peminjaman yang cepat dan tanpa kontak fisik.',
@@ -41,7 +40,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
       imageSemanticLabel: 'QR Code Scanning',
       accentColor: LuminaColors.secondary,
     ),
-    _OnboardingSlideData(
+    OnboardingSlideModel(
       title: 'Kelola Perpustakaan',
       description:
           'Pantau riwayat bacaan dan kelola koleksi pribadi Anda dengan sistem yang terorganisir.',
@@ -81,13 +80,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   void _goToHome() {
-    Get.off(
-      // () => const LibraryHomePage(),
-      () => const LibraryStaffHomePage(),
-      transition: Transition.fadeIn,
-      duration: const Duration(milliseconds: 480),
-      curve: Curves.easeOutCubic,
-    );
+    LuminaRoleRouter.goToMahasiswaHome();
+    // LuminaRoleRouter.goToStaffHome();
   }
 
   @override
@@ -280,7 +274,7 @@ class _OnboardingSlide extends StatelessWidget {
     required this.data,
   });
 
-  final _OnboardingSlideData data;
+  final OnboardingSlideModel data;
 
   @override
   Widget build(BuildContext context) {
@@ -702,18 +696,3 @@ class _OnboardingPrimaryButton extends StatelessWidget {
   }
 }
 
-class _OnboardingSlideData {
-  const _OnboardingSlideData({
-    required this.title,
-    required this.description,
-    required this.imageUrl,
-    required this.imageSemanticLabel,
-    required this.accentColor,
-  });
-
-  final String title;
-  final String description;
-  final String imageUrl;
-  final String imageSemanticLabel;
-  final Color accentColor;
-}

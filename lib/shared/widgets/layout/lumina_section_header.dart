@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/lumina_colors.dart';
-import '../../../core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/core/theme/lumina_colors.dart';
+import 'package:lumina_library/core/theme/lumina_text_styles.dart';
 
 class LuminaSectionHeader extends StatelessWidget {
   const LuminaSectionHeader({

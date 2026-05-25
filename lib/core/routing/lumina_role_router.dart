@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
 
-import '../../features/mahasiswa/presentation/pages/library_home_page.dart';
-import '../../features/staff/presentation/pages/library_staff_home_page.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/pages/home/library_home_page.dart';
+import 'package:lumina_library/features/staff/presentation/pages/home/library_staff_home_page.dart';
 
 enum LuminaUserRole {
   mahasiswa,
@@ -20,15 +20,23 @@ class LuminaRoleRouter {
         normalizedRole == 'STAFF' ||
         normalizedRole == 'LIBRARIAN' ||
         normalizedRole == 'ADMIN') {
-      Get.offAll(
-        () => const LibraryStaffHomePage(),
-        transition: Transition.fadeIn,
-      );
+      goToStaffHome();
       return;
     }
 
+    goToMahasiswaHome();
+  }
+
+  static void goToMahasiswaHome() {
     Get.offAll(
       () => const LibraryHomePage(),
+      transition: Transition.fadeIn,
+    );
+  }
+
+  static void goToStaffHome() {
+    Get.offAll(
+      () => const LibraryStaffHomePage(),
       transition: Transition.fadeIn,
     );
   }

@@ -30,10 +30,22 @@ class LuminaTextStyles {
         height: 28 / 20,
       );
 
+  static TextStyle get titleSm => GoogleFonts.inter(
+        fontSize: 14,
+        fontWeight: FontWeight.w600,
+        height: 20 / 14,
+      );
+
   static TextStyle get titleLg => GoogleFonts.inter(
         fontSize: 18,
         fontWeight: FontWeight.w600,
         height: 24 / 18,
+      );
+
+  static TextStyle get titleMd => GoogleFonts.inter(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        height: 24 / 16,
       );
 
   static TextStyle get bodyLg => GoogleFonts.inter(
@@ -46,6 +58,12 @@ class LuminaTextStyles {
         fontSize: 14,
         fontWeight: FontWeight.w400,
         height: 22 / 14,
+      );
+
+  static TextStyle get bodySm => GoogleFonts.inter(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        height: 18 / 12,
       );
 
   static TextStyle get labelMd => GoogleFonts.inter(

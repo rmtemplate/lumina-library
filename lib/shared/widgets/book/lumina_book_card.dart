@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/lumina_colors.dart';
-import '../../../core/theme/lumina_radius.dart';
-import '../../../core/theme/lumina_spacing.dart';
-import '../../../core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/core/theme/lumina_colors.dart';
+import 'package:lumina_library/core/theme/lumina_radius.dart';
+import 'package:lumina_library/core/theme/lumina_spacing.dart';
+import 'package:lumina_library/core/theme/lumina_text_styles.dart';
 
 class LuminaBookCard extends StatelessWidget {
   const LuminaBookCard({
@@ -13,6 +13,7 @@ class LuminaBookCard extends StatelessWidget {
     required this.rating,
     required this.imageUrl,
     required this.isAvailable,
+    this.libraryLocation,
     this.width = 160,
     this.imageAspectRatio = 2 / 3,
     this.showRatingBadge = true,
@@ -36,6 +37,7 @@ class LuminaBookCard extends StatelessWidget {
   final String rating;
   final String imageUrl;
   final bool isAvailable;
+  final String? libraryLocation;
 
   final double width;
   final double imageAspectRatio;
@@ -56,6 +58,11 @@ class LuminaBookCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onFavoriteTap;
   final VoidCallback? onBorrowTap;
+
+  bool get _hasLibraryLocation {
+    final value = libraryLocation;
+    return value != null && value.trim().isNotEmpty;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +107,6 @@ class LuminaBookCard extends StatelessWidget {
                     onFavoriteTap: onFavoriteTap,
                   ),
                 ),
-
                 Padding(
                   padding: const EdgeInsets.all(LuminaSpacing.sm),
                   child: Column(
@@ -116,9 +122,7 @@ class LuminaBookCard extends StatelessWidget {
                           height: 1.15,
                         ),
                       ),
-
                       const SizedBox(height: 3),
-
                       Text(
                         author,
                         maxLines: 1,
@@ -130,12 +134,16 @@ class LuminaBookCard extends StatelessWidget {
                           letterSpacing: 0,
                         ),
                       ),
-
+                      if (_hasLibraryLocation) ...[
+                        const SizedBox(height: LuminaSpacing.xs),
+                        _LibraryLocationText(
+                          location: libraryLocation!.trim(),
+                        ),
+                      ],
                       if (showInlineRating) ...[
                         const SizedBox(height: LuminaSpacing.xs),
                         _InlineRating(rating: rating),
                       ],
-
                       if (showAvailabilityStatus) ...[
                         const SizedBox(height: LuminaSpacing.sm),
                         _AvailabilityStatus(
@@ -144,7 +152,6 @@ class LuminaBookCard extends StatelessWidget {
                           unavailableLabel: unavailableStatusLabel,
                         ),
                       ],
-
                       if (showBorrowButton) ...[
                         const SizedBox(height: LuminaSpacing.sm),
                         _BorrowButton(
@@ -210,10 +217,26 @@ class _BookCover extends StatelessWidget {
         opacity: 0.72,
         child: ColorFiltered(
           colorFilter: const ColorFilter.matrix(<double>[
-            0.30, 0.59, 0.11, 0, 0,
-            0.30, 0.59, 0.11, 0, 0,
-            0.30, 0.59, 0.11, 0, 0,
-            0,    0,    0,    1, 0,
+            0.30,
+            0.59,
+            0.11,
+            0,
+            0,
+            0.30,
+            0.59,
+            0.11,
+            0,
+            0,
+            0.30,
+            0.59,
+            0.11,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
           ]),
           child: image,
         ),
@@ -225,14 +248,12 @@ class _BookCover extends StatelessWidget {
         Positioned.fill(
           child: image,
         ),
-
         if (showRatingBadge)
           Positioned(
             top: 8,
             right: 8,
             child: _RatingBadge(rating: rating),
           ),
-
         if (showFavoriteButton)
           Positioned(
             top: 8,
@@ -242,6 +263,41 @@ class _BookCover extends StatelessWidget {
               onTap: onFavoriteTap,
             ),
           ),
+      ],
+    );
+  }
+}
+
+class _LibraryLocationText extends StatelessWidget {
+  const _LibraryLocationText({
+    required this.location,
+  });
+
+  final String location;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(
+          Icons.location_on_rounded,
+          size: 14,
+          color: LuminaColors.secondary,
+        ),
+        const SizedBox(width: 3),
+        Expanded(
+          child: Text(
+            location,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: LuminaTextStyles.labelMd.copyWith(
+              color: LuminaColors.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+              height: 1.15,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
       ],
     );
   }

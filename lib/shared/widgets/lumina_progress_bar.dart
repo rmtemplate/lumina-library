@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/lumina_colors.dart';
-import '../../core/theme/lumina_radius.dart';
+import 'package:lumina_library/core/theme/lumina_colors.dart';
+import 'package:lumina_library/core/theme/lumina_radius.dart';
 
 class LuminaProgressBar extends StatelessWidget {
   const LuminaProgressBar({
