@@ -1,100 +1,57 @@
 import 'package:flutter/material.dart';
 
-import 'package:lumina_library/core/theme/lumina_colors.dart';
-
-class StaffStatData {
-  const StaffStatData({
+class StaffDashboardStatModel {
+  const StaffDashboardStatModel({
+    required this.id,
     required this.icon,
     required this.label,
     required this.value,
-    required this.variant,
+    required this.backgroundColor,
+    required this.foregroundColor,
+    this.borderColor,
   });
 
+  final String id;
   final IconData icon;
   final String label;
   final String value;
-  final StaffStatVariant variant;
-}
-
-enum StaffStatVariant {
-  light,
-  primary,
-  error,
-}
-
-extension StaffStatVariantX on StaffStatVariant {
-  StaffStatConfig get config {
-    switch (this) {
-      case StaffStatVariant.light:
-        return const StaffStatConfig(
-          backgroundColor: LuminaColors.surfaceContainerLowest,
-          labelColor: LuminaColors.onSurfaceVariant,
-          valueColor: LuminaColors.primary,
-        );
-
-      case StaffStatVariant.primary:
-        return const StaffStatConfig(
-          backgroundColor: LuminaColors.primaryContainer,
-          labelColor: LuminaColors.primaryFixedDim,
-          valueColor: LuminaColors.onPrimary,
-        );
-
-      case StaffStatVariant.error:
-        return const StaffStatConfig(
-          backgroundColor: LuminaColors.errorContainer,
-          labelColor: LuminaColors.onErrorContainer,
-          valueColor: LuminaColors.onErrorContainer,
-        );
-    }
-  }
-}
-
-class StaffStatConfig {
-  const StaffStatConfig({
-    required this.backgroundColor,
-    required this.labelColor,
-    required this.valueColor,
-  });
-
   final Color backgroundColor;
-  final Color labelColor;
-  final Color valueColor;
+  final Color foregroundColor;
+  final Color? borderColor;
 }
 
-class StaffQuickActionData {
-  const StaffQuickActionData({
+class StaffDashboardActionModel {
+  const StaffDashboardActionModel({
+    required this.id,
     required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.iconBackgroundColor,
-    required this.iconColor,
-    this.onTap,
+    required this.label,
   });
 
+  final String id;
   final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color iconBackgroundColor;
-  final Color iconColor;
-  final VoidCallback? onTap;
+  final String label;
 }
 
-class StaffActivityData {
-  const StaffActivityData({
+class StaffDashboardActivityModel {
+  const StaffDashboardActivityModel({
+    required this.id,
     required this.icon,
-    required this.iconColor,
     required this.iconBackgroundColor,
+    required this.iconColor,
     required this.titlePrefix,
-    required this.actionText,
-    required this.bookTitle,
+    required this.highlightText,
+    required this.titleSuffix,
     required this.timeText,
+    this.highlightItalic = false,
   });
 
+  final String id;
   final IconData icon;
-  final Color iconColor;
   final Color iconBackgroundColor;
+  final Color iconColor;
   final String titlePrefix;
-  final String actionText;
-  final String bookTitle;
+  final String highlightText;
+  final String titleSuffix;
   final String timeText;
+  final bool highlightItalic;
 }

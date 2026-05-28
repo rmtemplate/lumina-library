@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lumina_library/features/auth/data/controllers/library_register_controller.dart';
+import 'package:lumina_library/features/auth/data/models/library_register_models.dart';
 
 import '../../../../../core/theme/lumina_colors.dart';
 import '../../../../../core/theme/lumina_radius.dart';
@@ -23,7 +24,6 @@ class LibraryRegisterPage extends StatelessWidget {
     if (Get.isRegistered<LibraryRegisterController>()) {
       return Get.find<LibraryRegisterController>();
     }
-
     return Get.put(LibraryRegisterController());
   }
 
@@ -79,9 +79,9 @@ class _RegisterCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.055),
-            blurRadius: 28,
-            offset: const Offset(0, 14),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
@@ -91,47 +91,44 @@ class _RegisterCard extends StatelessWidget {
           const _RegisterTopAccent(),
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              LuminaSpacing.lg,
-              LuminaSpacing.xl,
-              LuminaSpacing.lg,
-              LuminaSpacing.lg,
+              LuminaSpacing.md, // Diperkecil dari lg
+              LuminaSpacing.lg, // Diperkecil dari xl
+              LuminaSpacing.md,
+              LuminaSpacing.md,
             ),
             child: Form(
               key: controller.formKey,
               autovalidateMode: AutovalidateMode.onUserInteraction,
               child: Column(
                 children: [
-                  _RegisterHeader(
-                    logoAssetPath: logoAssetPath,
-                  ),
-                  const SizedBox(height: LuminaSpacing.xl),
-                  _RegisterIdentitySection(
-                    controller: controller,
-                  ),
-                  const SizedBox(height: LuminaSpacing.lg),
-                  _RegisterProfileSection(
-                    controller: controller,
-                  ),
-                  const SizedBox(height: LuminaSpacing.lg),
+                  _RegisterHeader(logoAssetPath: logoAssetPath),
+                  const SizedBox(height: LuminaSpacing.lg), // Diperkecil dari xl
+                  
+                  _RegisterIdentitySection(controller: controller),
+                  const SizedBox(height: LuminaSpacing.md), // Diperkecil dari lg
+                  
+                  _RegisterProfileSection(controller: controller),
+                  const SizedBox(height: LuminaSpacing.md),
+                  
                   _RegisterPasswordSection(
                     controller: controller,
                     onRegisterSuccess: onRegisterSuccess,
                   ),
-                  const SizedBox(height: LuminaSpacing.lg),
-                  _RegisterAgreement(
-                    controller: controller,
-                  ),
-                  const SizedBox(height: LuminaSpacing.lg),
+                  const SizedBox(height: LuminaSpacing.md),
+                  
+                  _RegisterAgreement(controller: controller),
+                  const SizedBox(height: LuminaSpacing.md),
+                  
                   _RegisterSubmitButton(
                     controller: controller,
                     onRegisterSuccess: onRegisterSuccess,
                   ),
-                  const SizedBox(height: LuminaSpacing.xl),
+                  const SizedBox(height: LuminaSpacing.md),
+                  
                   const _RegisterDivider(),
-                  const SizedBox(height: LuminaSpacing.lg),
-                  _LoginTextButton(
-                    onLoginTap: onLoginTap,
-                  ),
+                  const SizedBox(height: LuminaSpacing.sm), // Diperkecil
+                  
+                  _LoginTextButton(onLoginTap: onLoginTap),
                 ],
               ),
             ),
@@ -148,7 +145,7 @@ class _RegisterTopAccent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 7,
+      height: 5, // Diperkecil dari 7 agar lebih proporsional
       width: double.infinity,
       color: LuminaColors.primary,
     );
@@ -156,9 +153,7 @@ class _RegisterTopAccent extends StatelessWidget {
 }
 
 class _RegisterHeader extends StatelessWidget {
-  const _RegisterHeader({
-    required this.logoAssetPath,
-  });
+  const _RegisterHeader({required this.logoAssetPath});
 
   final String? logoAssetPath;
 
@@ -166,26 +161,25 @@ class _RegisterHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        _RegisterLogo(
-          logoAssetPath: logoAssetPath,
-        ),
-        const SizedBox(height: LuminaSpacing.lg),
+        _RegisterLogo(logoAssetPath: logoAssetPath),
+        const SizedBox(height: LuminaSpacing.md),
         Text(
           'Buat Akun Baru',
           textAlign: TextAlign.center,
           style: LuminaTextStyles.displayLgMobile.copyWith(
             color: LuminaColors.primary,
             fontWeight: FontWeight.w900,
+            fontSize: 22, // Sedikit disesuaikan agar lebih compact
             height: 1.12,
           ),
         ),
-        const SizedBox(height: LuminaSpacing.xs),
+        const SizedBox(height: 4),
         Text(
           'Daftar sebagai siswa, mahasiswa, pekerja, atau pengguna umum.',
           textAlign: TextAlign.center,
           style: LuminaTextStyles.bodyMd.copyWith(
             color: LuminaColors.onSurfaceVariant,
-            height: 1.45,
+            height: 1.35,
           ),
         ),
       ],
@@ -194,9 +188,7 @@ class _RegisterHeader extends StatelessWidget {
 }
 
 class _RegisterLogo extends StatelessWidget {
-  const _RegisterLogo({
-    required this.logoAssetPath,
-  });
+  const _RegisterLogo({required this.logoAssetPath});
 
   final String? logoAssetPath;
 
@@ -209,14 +201,12 @@ class _RegisterLogo extends StatelessWidget {
     }
 
     return SizedBox(
-      width: 86,
-      height: 86,
+      width: 64, // Diperkecil dari 86
+      height: 64,
       child: Image.asset(
         logoAssetPath!,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) {
-          return const _RegisterLogoFallback();
-        },
+        errorBuilder: (_, __, ___) => const _RegisterLogoFallback(),
       ),
     );
   }
@@ -228,11 +218,11 @@ class _RegisterLogoFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 86,
-      height: 86,
+      width: 64, // Diperkecil dari 86
+      height: 64,
       decoration: BoxDecoration(
         color: LuminaColors.primary.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+        borderRadius: BorderRadius.circular(LuminaRadius.lg),
         border: Border.all(
           color: LuminaColors.primary.withOpacity(0.12),
           width: 1,
@@ -241,16 +231,14 @@ class _RegisterLogoFallback extends StatelessWidget {
       child: const Icon(
         Icons.local_library_rounded,
         color: LuminaColors.primary,
-        size: 42,
+        size: 32, // Diperkecil dari 42
       ),
     );
   }
 }
 
 class _RegisterIdentitySection extends StatelessWidget {
-  const _RegisterIdentitySection({
-    required this.controller,
-  });
+  const _RegisterIdentitySection({required this.controller});
 
   final LibraryRegisterController controller;
 
@@ -266,7 +254,7 @@ class _RegisterIdentitySection extends StatelessWidget {
           textInputAction: TextInputAction.next,
           validator: controller.validateFullname,
         ),
-        const SizedBox(height: LuminaSpacing.md),
+        const SizedBox(height: LuminaSpacing.sm), // Jarak antar field diperkecil
         _AuthTextField(
           controller: controller.emailController,
           label: 'Email',
@@ -276,7 +264,7 @@ class _RegisterIdentitySection extends StatelessWidget {
           textInputAction: TextInputAction.next,
           validator: controller.validateEmail,
         ),
-        const SizedBox(height: LuminaSpacing.md),
+        const SizedBox(height: LuminaSpacing.sm),
         _AuthTextField(
           controller: controller.phoneController,
           label: 'Nomor Telepon',
@@ -292,9 +280,7 @@ class _RegisterIdentitySection extends StatelessWidget {
 }
 
 class _RegisterProfileSection extends StatelessWidget {
-  const _RegisterProfileSection({
-    required this.controller,
-  });
+  const _RegisterProfileSection({required this.controller});
 
   final LibraryRegisterController controller;
 
@@ -305,127 +291,157 @@ class _RegisterProfileSection extends StatelessWidget {
 
       return Column(
         children: [
-          _RegisterProfileTypeDropdown(
-            controller: controller,
+          _ProfileTypeBottomSheetField(
+            selectedItem: profileType,
+            onTap: () => _openProfileTypeSheet(context),
           ),
-          const SizedBox(height: LuminaSpacing.sm),
+          const SizedBox(height: LuminaSpacing.xs),
           _SelectedProfileInfo(
             title: profileType.label,
             description: profileType.description,
           ),
-          const SizedBox(height: LuminaSpacing.md),
-          _AuthTextField(
-            controller: controller.institutionController,
-            label: profileType.institutionLabel,
-            hintText: profileType.requiresInstitution
-                ? 'Wajib diisi'
-                : 'Opsional',
-            icon: Icons.account_balance_outlined,
-            textInputAction: TextInputAction.next,
-            validator: controller.validateInstitution,
-          ),
-          const SizedBox(height: LuminaSpacing.md),
-          _AuthTextField(
-            controller: controller.majorController,
-            label: profileType.majorLabel,
-            hintText: profileType.requiresMajor ? 'Wajib diisi' : 'Opsional',
-            icon: Icons.school_outlined,
-            textInputAction: TextInputAction.next,
-            validator: controller.validateMajor,
-          ),
-          const SizedBox(height: LuminaSpacing.md),
-          _AuthTextField(
-            controller: controller.levelController,
-            label: profileType.levelLabel,
-            hintText: profileType.requiresLevel ? 'Wajib diisi' : 'Opsional',
-            icon: Icons.badge_outlined,
-            textInputAction: TextInputAction.next,
-            validator: controller.validateLevel,
-          ),
+          if (profileType.showInstitution) ...[
+            const SizedBox(height: LuminaSpacing.sm),
+            _AuthTextField(
+              controller: controller.institutionController,
+              label: profileType.institutionLabel,
+              hintText: profileType.requiresInstitution ? 'Wajib diisi' : 'Opsional',
+              icon: Icons.account_balance_outlined,
+              textInputAction: TextInputAction.next,
+              validator: controller.validateInstitution,
+            ),
+          ],
+          if (profileType.showMajor) ...[
+            const SizedBox(height: LuminaSpacing.sm),
+            _AuthTextField(
+              controller: controller.majorController,
+              label: profileType.majorLabel,
+              hintText: profileType.requiresMajor ? 'Wajib diisi' : 'Opsional',
+              icon: Icons.school_outlined,
+              textInputAction: TextInputAction.next,
+              validator: controller.validateMajor,
+            ),
+          ],
+          if (profileType.showLevel) ...[
+            const SizedBox(height: LuminaSpacing.sm),
+            _AuthTextField(
+              controller: controller.levelController,
+              label: profileType.levelLabel,
+              hintText: profileType.requiresLevel ? 'Wajib diisi' : 'Opsional',
+              icon: Icons.badge_outlined,
+              textInputAction: TextInputAction.next,
+              validator: controller.validateLevel,
+            ),
+          ],
         ],
       );
     });
   }
+
+  Future<void> _openProfileTypeSheet(BuildContext context) async {
+    final selectedId = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) {
+        return _ProfileTypePickerSheet(
+          selectedId: controller.selectedProfileTypeId.value,
+        );
+      },
+    );
+
+    if (selectedId == null || selectedId.isEmpty) return;
+    controller.setProfileType(selectedId);
+  }
 }
 
-class _RegisterProfileTypeDropdown extends StatelessWidget {
-  const _RegisterProfileTypeDropdown({
-    required this.controller,
+class _ProfileTypeBottomSheetField extends StatelessWidget {
+  const _ProfileTypeBottomSheetField({
+    required this.selectedItem,
+    required this.onTap,
   });
 
-  final LibraryRegisterController controller;
+  final LibraryRegisterProfileTypeModel selectedItem;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return DropdownButtonFormField<String>(
-      value: controller.selectedProfileTypeId.value,
-      isExpanded: true,
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Status pendidikan/pekerjaan wajib dipilih.';
-        }
-
-        return null;
-      },
-      items: LibraryRegisterController.profileTypes.map((item) {
-        return DropdownMenuItem<String>(
-          value: item.id,
-          child: Text(
-            item.label,
-            overflow: TextOverflow.ellipsis,
+    return Material(
+      color: LuminaColors.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(LuminaRadius.lg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(LuminaRadius.lg),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12), // Diperkecil dari LuminaSpacing.md
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(LuminaRadius.lg),
+            border: Border.all(
+              color: LuminaColors.outlineVariant,
+              width: 1,
+            ),
           ),
-        );
-      }).toList(),
-      onChanged: controller.setProfileType,
-      decoration: InputDecoration(
-        labelText: 'Sedang apa saat ini?',
-        prefixIcon: const Icon(
-          Icons.workspace_premium_outlined,
-          color: LuminaColors.onSurfaceVariant,
-          size: 22,
-        ),
-        filled: true,
-        fillColor: LuminaColors.surfaceContainerLowest,
-        labelStyle: LuminaTextStyles.bodyMd.copyWith(
-          color: LuminaColors.onSurfaceVariant,
-          fontWeight: FontWeight.w500,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: LuminaSpacing.md,
-          vertical: 15,
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(LuminaRadius.lg),
-          borderSide: const BorderSide(
-            color: LuminaColors.outlineVariant,
-            width: 1,
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(LuminaRadius.lg),
-          borderSide: const BorderSide(
-            color: LuminaColors.primary,
-            width: 1.3,
-          ),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(LuminaRadius.lg),
-          borderSide: const BorderSide(
-            color: LuminaColors.error,
-            width: 1,
-          ),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(LuminaRadius.lg),
-          borderSide: const BorderSide(
-            color: LuminaColors.error,
-            width: 1.3,
+          child: Row(
+            children: [
+              Container(
+                width: 36, // Diperkecil dari 44
+                height: 36,
+                decoration: BoxDecoration(
+                  color: LuminaColors.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(LuminaRadius.sm),
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_outlined,
+                  color: LuminaColors.primary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: LuminaSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sedang apa saat ini?',
+                      style: LuminaTextStyles.labelMd.copyWith(
+                        color: LuminaColors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11, // Agar lebih hemat ruang vertikal
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      selectedItem.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: LuminaTextStyles.bodyLg.copyWith(
+                        color: LuminaColors.onSurface,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: LuminaSpacing.sm),
+              const Icon(
+                Icons.expand_more_rounded,
+                color: LuminaColors.onSurfaceVariant,
+                size: 20,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
+// ... _ProfileTypePickerSheet dan _ProfileTypeOptionTile tetap sama logikanya,
+// hanya saya lewati duplikasi panjangnya untuk fokus pada form utama. Jika Anda ingin 
+// mengubah bagian BottomSheet juga, Anda bisa menerapkan pengurangan padding yang sama.
 
 class _SelectedProfileInfo extends StatelessWidget {
   const _SelectedProfileInfo({
@@ -440,54 +456,36 @@ class _SelectedProfileInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(LuminaSpacing.sm),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), // Lebih compact
       decoration: BoxDecoration(
         color: LuminaColors.primary.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(LuminaRadius.lg),
+        borderRadius: BorderRadius.circular(LuminaRadius.md), // Radius diperkecil
         border: Border.all(
           color: LuminaColors.primary.withOpacity(0.10),
           width: 1,
         ),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: LuminaColors.primary.withOpacity(0.08),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(
               Icons.info_outline_rounded,
               color: LuminaColors.primary,
-              size: 19,
+              size: 16, // Lebih kecil
             ),
           ),
-          const SizedBox(width: LuminaSpacing.sm),
+          const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: LuminaTextStyles.labelMd.copyWith(
-                    color: LuminaColors.primary,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: LuminaTextStyles.labelMd.copyWith(
-                    color: LuminaColors.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                    height: 1.35,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
+            child: Text(
+              description,
+              style: LuminaTextStyles.labelMd.copyWith(
+                color: LuminaColors.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+                height: 1.3,
+                fontSize: 11,
+              ),
             ),
           ),
         ],
@@ -522,19 +520,17 @@ class _RegisterPasswordSection extends StatelessWidget {
             textInputAction: TextInputAction.next,
             validator: controller.validatePassword,
             suffixIcon: IconButton(
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
               onPressed: controller.togglePasswordVisibility,
               icon: Icon(
-                isPasswordVisible
-                    ? Icons.visibility_rounded
-                    : Icons.visibility_off_rounded,
+                isPasswordVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
                 color: LuminaColors.onSurfaceVariant,
-                size: 21,
               ),
             ),
           ),
-
-          const SizedBox(height: LuminaSpacing.md),
-
+          const SizedBox(height: LuminaSpacing.sm), // Diperkecil dari md
           _AuthTextField(
             controller: controller.confirmPasswordController,
             label: 'Konfirmasi Password',
@@ -544,19 +540,17 @@ class _RegisterPasswordSection extends StatelessWidget {
             textInputAction: TextInputAction.done,
             validator: controller.validateConfirmPassword,
             suffixIcon: IconButton(
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
               onPressed: controller.toggleConfirmPasswordVisibility,
               icon: Icon(
-                isConfirmVisible
-                    ? Icons.visibility_rounded
-                    : Icons.visibility_off_rounded,
+                isConfirmVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
                 color: LuminaColors.onSurfaceVariant,
-                size: 21,
               ),
             ),
             onSubmitted: (_) {
-              controller.submitRegister(
-                onSuccess: onRegisterSuccess,
-              );
+              controller.submitRegister(onSuccess: onRegisterSuccess);
             },
           ),
         ],
@@ -566,9 +560,7 @@ class _RegisterPasswordSection extends StatelessWidget {
 }
 
 class _RegisterAgreement extends StatelessWidget {
-  const _RegisterAgreement({
-    required this.controller,
-  });
+  const _RegisterAgreement({required this.controller});
 
   final LibraryRegisterController controller;
 
@@ -576,33 +568,35 @@ class _RegisterAgreement extends StatelessWidget {
   Widget build(BuildContext context) {
     return Obx(() {
       return InkWell(
-        onTap: () {
-          controller.setAgreementChecked(
-            !controller.isAgreementChecked.value,
-          );
-        },
-        borderRadius: BorderRadius.circular(LuminaRadius.lg),
+        onTap: () => controller.setAgreementChecked(!controller.isAgreementChecked.value),
+        borderRadius: BorderRadius.circular(LuminaRadius.sm),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Checkbox(
-              value: controller.isAgreementChecked.value,
-              onChanged: controller.setAgreementChecked,
-              activeColor: LuminaColors.primary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(LuminaRadius.sm),
+            SizedBox(
+              height: 24, // Membatasi tinggi checkbox agar tidak memakan ruang
+              width: 24,
+              child: Checkbox(
+                value: controller.isAgreementChecked.value,
+                onChanged: controller.setAgreementChecked,
+                activeColor: LuminaColors.primary,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(LuminaRadius.sm),
+                ),
               ),
             ),
+            const SizedBox(width: LuminaSpacing.sm),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.only(top: 11),
+                padding: const EdgeInsets.only(top: 2), // Disesuaikan agar sejajar
                 child: Text(
                   'Saya menyetujui bahwa data yang saya isi benar dan dapat digunakan untuk kebutuhan layanan perpustakaan.',
                   style: LuminaTextStyles.labelMd.copyWith(
                     color: LuminaColors.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                    height: 1.4,
-                    letterSpacing: 0,
+                    fontWeight: FontWeight.w500,
+                    height: 1.3,
+                    fontSize: 11,
                   ),
                 ),
               ),
@@ -630,15 +624,11 @@ class _RegisterSubmitButton extends StatelessWidget {
 
       return SizedBox(
         width: double.infinity,
-        height: 52,
+        height: 46, // Diperkecil dari 52
         child: ElevatedButton(
           onPressed: isLoading
               ? null
-              : () {
-                  controller.submitRegister(
-                    onSuccess: onRegisterSuccess,
-                  );
-                },
+              : () => controller.submitRegister(onSuccess: onRegisterSuccess),
           style: ElevatedButton.styleFrom(
             elevation: 0,
             backgroundColor: LuminaColors.primary,
@@ -654,10 +644,10 @@ class _RegisterSubmitButton extends StatelessWidget {
             child: isLoading
                 ? const SizedBox(
                     key: ValueKey('register-loading'),
-                    width: 23,
-                    height: 23,
+                    width: 20, // Loading indicator sedikit dikecilkan
+                    height: 20,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2.4,
+                      strokeWidth: 2.2,
                       color: LuminaColors.onPrimary,
                     ),
                   )
@@ -669,14 +659,15 @@ class _RegisterSubmitButton extends StatelessWidget {
                         'Daftar',
                         style: LuminaTextStyles.titleLg.copyWith(
                           color: LuminaColors.onPrimary,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16, // Font size disesuaikan dengan tinggi button
                         ),
                       ),
                       const SizedBox(width: LuminaSpacing.xs),
                       const Icon(
                         Icons.arrow_forward_rounded,
                         color: LuminaColors.onPrimary,
-                        size: 22,
+                        size: 18,
                       ),
                     ],
                   ),
@@ -694,40 +685,27 @@ class _RegisterDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Expanded(
-          child: Divider(
-            color: LuminaColors.surfaceVariant,
-            height: 1,
-          ),
-        ),
+        const Expanded(child: Divider(color: LuminaColors.surfaceVariant, height: 1)),
         Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: LuminaSpacing.sm,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: LuminaSpacing.sm),
           child: Text(
             'LUMINA LIBRARY',
             style: LuminaTextStyles.labelMd.copyWith(
               color: LuminaColors.outline,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+              fontSize: 10,
             ),
           ),
         ),
-        const Expanded(
-          child: Divider(
-            color: LuminaColors.surfaceVariant,
-            height: 1,
-          ),
-        ),
+        const Expanded(child: Divider(color: LuminaColors.surfaceVariant, height: 1)),
       ],
     );
   }
 }
 
 class _LoginTextButton extends StatelessWidget {
-  const _LoginTextButton({
-    required this.onLoginTap,
-  });
+  const _LoginTextButton({required this.onLoginTap});
 
   final VoidCallback? onLoginTap;
 
@@ -741,16 +719,14 @@ class _LoginTextButton extends StatelessWidget {
           'Sudah memiliki akun?',
           style: LuminaTextStyles.bodyMd.copyWith(
             color: LuminaColors.onSurfaceVariant,
+            fontSize: 13,
           ),
         ),
         TextButton(
           onPressed: onLoginTap ?? Get.back,
           style: TextButton.styleFrom(
             foregroundColor: LuminaColors.primary,
-            padding: const EdgeInsets.symmetric(
-              horizontal: LuminaSpacing.xs,
-              vertical: LuminaSpacing.xs,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             minimumSize: Size.zero,
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
@@ -758,7 +734,8 @@ class _LoginTextButton extends StatelessWidget {
             'Masuk disini',
             style: LuminaTextStyles.bodyMd.copyWith(
               color: LuminaColors.primary,
-              fontWeight: FontWeight.w900,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
               decoration: TextDecoration.underline,
               decorationColor: LuminaColors.primary,
             ),
@@ -807,6 +784,7 @@ class _AuthTextField extends StatelessWidget {
       style: LuminaTextStyles.bodyLg.copyWith(
         color: LuminaColors.onSurface,
         fontWeight: FontWeight.w600,
+        fontSize: 14, // Teks field sedikit dirampingkan
       ),
       decoration: InputDecoration(
         labelText: label,
@@ -814,7 +792,7 @@ class _AuthTextField extends StatelessWidget {
         prefixIcon: Icon(
           icon,
           color: LuminaColors.onSurfaceVariant,
-          size: 22,
+          size: 20, // Diperkecil dari 22
         ),
         suffixIcon: suffixIcon,
         filled: true,
@@ -833,34 +811,264 @@ class _AuthTextField extends StatelessWidget {
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: LuminaSpacing.md,
-          vertical: 15,
+          vertical: 12, // Dibuat lebih compact dari sebelumnya (15)
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(LuminaRadius.lg),
+          borderRadius: BorderRadius.circular(LuminaRadius.md), // Radius field disesuaikan
           borderSide: const BorderSide(
             color: LuminaColors.outlineVariant,
             width: 1,
           ),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(LuminaRadius.lg),
+          borderRadius: BorderRadius.circular(LuminaRadius.md),
           borderSide: const BorderSide(
             color: LuminaColors.primary,
-            width: 1.3,
+            width: 1.2,
           ),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(LuminaRadius.lg),
+          borderRadius: BorderRadius.circular(LuminaRadius.md),
           borderSide: const BorderSide(
             color: LuminaColors.error,
             width: 1,
           ),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(LuminaRadius.lg),
+          borderRadius: BorderRadius.circular(LuminaRadius.md),
           borderSide: const BorderSide(
             color: LuminaColors.error,
-            width: 1.3,
+            width: 1.2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileTypePickerSheet extends StatelessWidget {
+  const _ProfileTypePickerSheet({
+    required this.selectedId,
+  });
+
+  final String selectedId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.88,
+      ),
+      padding: const EdgeInsets.fromLTRB(
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.sm,
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.marginMobile,
+      ),
+      decoration: const BoxDecoration(
+        color: LuminaColors.surface,
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(LuminaRadius.xl),
+          topRight: Radius.circular(LuminaRadius.xl),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 42,
+              height: 4,
+              decoration: BoxDecoration(
+                color: LuminaColors.outlineVariant,
+                borderRadius: BorderRadius.circular(LuminaRadius.full),
+              ),
+            ),
+            const SizedBox(height: LuminaSpacing.lg),
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: LuminaColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(LuminaRadius.lg),
+                  ),
+                  child: const Icon(
+                    Icons.school_outlined,
+                    color: LuminaColors.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: LuminaSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Pilih Status',
+                        style: LuminaTextStyles.headlineSm.copyWith(
+                          color: LuminaColors.primary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Field register akan menyesuaikan pilihan Anda.',
+                        style: LuminaTextStyles.bodyMd.copyWith(
+                          color: LuminaColors.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: LuminaSpacing.lg),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const BouncingScrollPhysics(),
+                itemCount: LibraryRegisterController.profileTypes.length,
+                separatorBuilder: (_, __) {
+                  return const SizedBox(height: LuminaSpacing.sm);
+                },
+                itemBuilder: (context, index) {
+                  final item = LibraryRegisterController.profileTypes[index];
+                  final isSelected = item.id == selectedId;
+
+                  return _ProfileTypeOptionTile(
+                    item: item,
+                    isSelected: isSelected,
+                    onTap: () {
+                      Navigator.of(context).pop(item.id);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileTypeOptionTile extends StatelessWidget {
+  const _ProfileTypeOptionTile({
+    required this.item,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final LibraryRegisterProfileTypeModel item;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  String get _fieldSummary {
+    final fields = <String>[];
+
+    if (item.showInstitution) {
+      fields.add(item.institutionLabel);
+    }
+
+    if (item.showMajor) {
+      fields.add(item.majorLabel);
+    }
+
+    if (item.showLevel) {
+      fields.add(item.levelLabel);
+    }
+
+    if (fields.isEmpty) {
+      return 'Tidak ada field tambahan';
+    }
+
+    return fields.join(' • ');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: isSelected
+          ? LuminaColors.primary.withOpacity(0.08)
+          : LuminaColors.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(LuminaRadius.lg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(LuminaRadius.lg),
+        child: Container(
+          padding: const EdgeInsets.all(LuminaSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(LuminaRadius.lg),
+            border: Border.all(
+              color: isSelected
+                  ? LuminaColors.primary.withOpacity(0.28)
+                  : LuminaColors.outlineVariant,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? LuminaColors.primary
+                      : LuminaColors.surfaceContainerLow,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  isSelected
+                      ? Icons.check_rounded
+                      : Icons.person_search_outlined,
+                  color: isSelected
+                      ? LuminaColors.onPrimary
+                      : LuminaColors.onSurfaceVariant,
+                  size: 21,
+                ),
+              ),
+              const SizedBox(width: LuminaSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.label,
+                      style: LuminaTextStyles.bodyLg.copyWith(
+                        color: LuminaColors.onSurface,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      item.description,
+                      style: LuminaTextStyles.labelMd.copyWith(
+                        color: LuminaColors.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                        height: 1.32,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _fieldSummary,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: LuminaTextStyles.labelMd.copyWith(
+                        color: LuminaColors.primary,
+                        fontWeight: FontWeight.w800,
+                        height: 1.25,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

@@ -8,12 +8,11 @@ import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
-import 'package:lumina_library/shared/widgets/lumina_brand_mark.dart';
 
 class SplashScreenPage extends StatefulWidget {
   const SplashScreenPage({
     super.key,
-    this.duration = const Duration(milliseconds: 2200),
+    this.duration = const Duration(milliseconds: 2500), // Sedikit diperpanjang agar animasi logo lebih dinikmati
   });
 
   final Duration duration;
@@ -35,7 +34,7 @@ class _SplashScreenPageState extends State<SplashScreenPage>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 1000), // Animasi sedikit lebih smooth
     );
 
     _fadeAnimation = CurvedAnimation(
@@ -43,7 +42,7 @@ class _SplashScreenPageState extends State<SplashScreenPage>
       curve: Curves.easeOutCubic,
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.92, end: 1).animate(
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1).animate(
       CurvedAnimation(
         parent: _controller,
         curve: Curves.easeOutBack,
@@ -60,7 +59,7 @@ class _SplashScreenPageState extends State<SplashScreenPage>
     Get.off(
       () => const OnboardingPage(),
       transition: Transition.fadeIn,
-      duration: const Duration(milliseconds: 420),
+      duration: const Duration(milliseconds: 600),
     );
   }
 
@@ -111,23 +110,46 @@ class _SplashContent extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const LuminaBrandLockup(),
+        // Menggunakan asset gambar logo
+        Image.asset(
+          'assets/images/logo/lumina-logo.png',
+          width: 160, // Sesuaikan lebar ini agar proporsional dengan layout Anda
+          fit: BoxFit.contain,
+        ),
         const SizedBox(height: LuminaSpacing.xl),
+        
+        // Badge dengan sentuhan UI yang lebih rapi dan merepresentasikan perpustakaan
         Container(
           padding: const EdgeInsets.symmetric(
-            horizontal: LuminaSpacing.md,
-            vertical: LuminaSpacing.xs,
+            horizontal: LuminaSpacing.lg,
+            vertical: LuminaSpacing.sm,
           ),
           decoration: BoxDecoration(
-            color: LuminaColors.secondary.withOpacity(0.10),
+            color: LuminaColors.secondary.withOpacity(0.08),
             borderRadius: BorderRadius.circular(LuminaRadius.full),
-          ),
-          child: Text(
-            'MODERN ACADEMIC LIBRARY',
-            style: LuminaTextStyles.labelMd.copyWith(
-              color: LuminaColors.secondary,
-              fontWeight: FontWeight.w700,
+            border: Border.all(
+              color: LuminaColors.secondary.withOpacity(0.15),
+              width: 1,
             ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.menu_book_rounded, // Ikon buku untuk mempertegas identitas library
+                size: 16,
+                color: LuminaColors.secondary,
+              ),
+              const SizedBox(width: LuminaSpacing.sm),
+              Text(
+                'PERPUSTAKAAN AKADEMIK',
+                style: LuminaTextStyles.labelMd.copyWith(
+                  color: LuminaColors.secondary,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 1.2, // Menambah kesan clean dan modern
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -146,19 +168,21 @@ class _SplashFooter extends StatelessWidget {
           width: 28,
           height: 28,
           child: CircularProgressIndicator(
-            strokeWidth: 2.4,
+            strokeWidth: 2.5,
             color: LuminaColors.secondary,
             backgroundColor: LuminaColors.surfaceContainerHigh,
           ),
         ),
         const SizedBox(height: LuminaSpacing.md),
         Text(
-          'Preparing your reading space...',
+          'Menyusun rak digital Anda...', // Copywriting bernuansa perpustakaan
           textAlign: TextAlign.center,
           style: LuminaTextStyles.bodyMd.copyWith(
             color: LuminaColors.onSurfaceVariant,
+            letterSpacing: 0.3,
           ),
         ),
+        const SizedBox(height: LuminaSpacing.lg), // Memberikan sedikit ruang bernapas di bagian bawah
       ],
     );
   }

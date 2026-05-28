@@ -13,3 +13,4 @@ export 'package:lumina_library/shared/models/menu/quick_action_model.dart';
 export 'package:lumina_library/shared/models/navigation/bottom_nav_item_model.dart';
 export 'package:lumina_library/shared/models/search/library_search_book_model.dart';
 export 'package:lumina_library/shared/models/statistic/statistic_card_model.dart';
+export 'package:lumina_library/shared/models/profile/lumina_profile_models.dart';

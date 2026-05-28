@@ -14,3 +14,4 @@ export 'package:lumina_library/shared/widgets/lumina_fab.dart';
 export 'package:lumina_library/shared/widgets/lumina_progress_bar.dart';
 export 'package:lumina_library/shared/widgets/lumina_text_field.dart';
 export 'package:lumina_library/shared/widgets/navigation/lumina_role_bottom_nav_bar.dart';
+export 'package:lumina_library/shared/widgets/profile/lumina_profile_widgets.dart';

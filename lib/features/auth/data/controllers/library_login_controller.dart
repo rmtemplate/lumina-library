@@ -78,7 +78,8 @@ class LibraryLoginController extends GetxController {
         duration: const Duration(seconds: 2),
       );
 
-      LuminaRoleRouter.goToMahasiswaHome();
+      // LuminaRoleRouter.goToMahasiswaHome();
+      LuminaRoleRouter.goToStaffHome();
     } catch (_) {
       Get.snackbar(
         'Login Gagal',

@@ -32,6 +32,7 @@ class _StaffQrScannerPageState extends State<StaffQrScannerPage>
   late final Animation<double> _scanLineAnimation;
 
   bool _isProcessingScan = false;
+  bool _isSuccess = false; // Trigger untuk animasi "snap" mirip Telegram
   bool _isTorchOn = false;
   String? _lastScannedCode;
 
@@ -101,10 +102,14 @@ class _StaffQrScannerPageState extends State<StaffQrScannerPage>
 
     setState(() {
       _isProcessingScan = true;
+      _isSuccess = true; // Mengaktifkan animasi snap barcode
       _lastScannedCode = code;
     });
 
     await _scannerController.stop();
+
+    // Memberikan waktu agar animasi "snap" selesai dan bisa dinikmati mata
+    await Future.delayed(const Duration(milliseconds: 550));
 
     if (!mounted) return;
 
@@ -126,6 +131,7 @@ class _StaffQrScannerPageState extends State<StaffQrScannerPage>
 
     setState(() {
       _isProcessingScan = false;
+      _isSuccess = false; // Mengembalikan ukuran kotak seperti semula
       _lastScannedCode = null;
     });
 
@@ -204,10 +210,19 @@ class _StaffQrScannerPageState extends State<StaffQrScannerPage>
 
   @override
   Widget build(BuildContext context) {
+    final shortestSide = MediaQuery.sizeOf(context).shortestSide;
+    final defaultFrameSize = shortestSide >= 420 ? 320.0 : 280.0;
+
+    // Menentukan target ukuran frame. Jika berhasil scan, frame akan menyusut menjepit barcode
+    final targetWidth = _isSuccess ? defaultFrameSize * 1.15 : defaultFrameSize;
+    final targetHeight = _isSuccess ? 100.0 : defaultFrameSize;
+    const yOffset = -50.0; // Menggeser kotak sedikit ke atas untuk menyeimbangkan UI
+
     return Scaffold(
       backgroundColor: LuminaColors.primary,
       body: Stack(
         children: [
+          // 1. Camera Feed
           Positioned.fill(
             child: MobileScanner(
               controller: _scannerController,
@@ -216,73 +231,93 @@ class _StaffQrScannerPageState extends State<StaffQrScannerPage>
             ),
           ),
 
+          // 2. Animasi Overlay & Hole Punch (Lubang transparan murni)
           Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: LuminaColors.primary.withOpacity(0.68),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: _isSuccess ? 1.0 : 0.0),
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutBack,
+              builder: (context, animValue, child) {
+                final currentWidth = defaultFrameSize + ((targetWidth - defaultFrameSize) * animValue);
+                final currentHeight = defaultFrameSize + ((targetHeight - defaultFrameSize) * animValue);
+
+                return Stack(
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _ScannerOverlayPainter(
+                          width: currentWidth,
+                          height: currentHeight,
+                          radius: LuminaRadius.xl,
+                          overlayColor: LuminaColors.primary.withOpacity(0.72),
+                          yOffset: yOffset,
+                        ),
+                      ),
+                    ),
+                    // 3. Vignette
+                    const Positioned.fill(
+                      child: _CameraVignetteOverlay(),
+                    ),
+                    // 4. Scanner Frame Borders
+                    Center(
+                      child: Transform.translate(
+                        offset: const Offset(0, yOffset),
+                        child: _ScannerFrame(
+                          width: currentWidth,
+                          height: currentHeight,
+                          animation: _scanLineAnimation,
+                          isPaused: _isProcessingScan,
+                          isSuccess: _isSuccess,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+
+          // 5. Top Bar UI
+          Positioned(
+            top: 0, left: 0, right: 0,
+            child: SafeArea(
+              child: _ScannerTopBar(
+                title: widget.title,
+                onBackTap: () {
+                  Navigator.of(context).maybePop();
+                },
               ),
             ),
           ),
 
-          const Positioned.fill(
-            child: _CameraVignetteOverlay(),
-          ),
-
-          SafeArea(
-            child: Column(
-              children: [
-                _ScannerTopBar(
-                  title: widget.title,
-                  onBackTap: () {
-                    Navigator.of(context).maybePop();
-                  },
-                ),
-
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      LuminaSpacing.marginMobile,
-                      LuminaSpacing.lg,
-                      LuminaSpacing.marginMobile,
-                      128,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _ScannerFrame(
-                          animation: _scanLineAnimation,
-                          isPaused: _isProcessingScan,
-                        ),
-
-                        const SizedBox(height: LuminaSpacing.xl),
-
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 320),
-                          child: Text(
-                            _lastScannedCode == null
-                                ? widget.description
-                                : 'QR berhasil terbaca. Mohon tunggu sebentar...',
-                            textAlign: TextAlign.center,
-                            style: LuminaTextStyles.bodyMd.copyWith(
-                              color: LuminaColors.onPrimary.withOpacity(0.90),
-                              height: 1.55,
-                              shadows: [
-                                Shadow(
-                                  color: Colors.black.withOpacity(0.45),
-                                  blurRadius: 10,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+          // 6. Text Description
+          Align(
+            alignment: const Alignment(0, 0.38),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: LuminaSpacing.xl),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Text(
+                  _lastScannedCode == null
+                      ? widget.description
+                      : 'QR berhasil terbaca. Mohon tunggu sebentar...',
+                  textAlign: TextAlign.center,
+                  style: LuminaTextStyles.bodyMd.copyWith(
+                    color: LuminaColors.onPrimary.withOpacity(0.90),
+                    height: 1.55,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withOpacity(0.65),
+                        blurRadius: 14,
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
 
+          // 7. Bottom Actions
           Positioned(
             left: 0,
             right: 0,
@@ -299,6 +334,55 @@ class _StaffQrScannerPageState extends State<StaffQrScannerPage>
         ],
       ),
     );
+  }
+}
+
+// CustomPainter untuk melubangi overlay secara transparan tanpa tertutup opacity
+class _ScannerOverlayPainter extends CustomPainter {
+  const _ScannerOverlayPainter({
+    required this.width,
+    required this.height,
+    required this.radius,
+    required this.overlayColor,
+    required this.yOffset,
+  });
+
+  final double width;
+  final double height;
+  final double radius;
+  final Color overlayColor;
+  final double yOffset;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final backgroundPath = Path()..addRect(Rect.fromLTWH(0, 0, size.width, size.height));
+    final cutoutPath = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(size.width / 2, (size.height / 2) + yOffset),
+            width: width,
+            height: height,
+          ),
+          Radius.circular(radius),
+        ),
+      );
+
+    final path = Path.combine(PathOperation.difference, backgroundPath, cutoutPath);
+    final paint = Paint()
+      ..color = overlayColor
+      ..style = PaintingStyle.fill;
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScannerOverlayPainter oldDelegate) {
+    return width != oldDelegate.width ||
+        height != oldDelegate.height ||
+        radius != oldDelegate.radius ||
+        overlayColor != oldDelegate.overlayColor ||
+        yOffset != oldDelegate.yOffset;
   }
 }
 
@@ -366,41 +450,50 @@ class _ScannerTopBar extends StatelessWidget {
 
 class _ScannerFrame extends StatelessWidget {
   const _ScannerFrame({
+    required this.width,
+    required this.height,
     required this.animation,
     required this.isPaused,
+    required this.isSuccess,
   });
 
+  final double width;
+  final double height;
   final Animation<double> animation;
   final bool isPaused;
+  final bool isSuccess;
 
   @override
   Widget build(BuildContext context) {
-    final shortestSide = MediaQuery.sizeOf(context).shortestSide;
-    final frameSize = shortestSide >= 420 ? 320.0 : 280.0;
+    final frameBorderColor = isSuccess 
+        ? Colors.greenAccent 
+        : LuminaColors.surfaceTint.withOpacity(0.32);
 
     return SizedBox(
-      width: frameSize,
-      height: frameSize,
+      width: width,
+      height: height,
       child: Stack(
         children: [
+          // Garis Border Standar Kotak
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
                 color: Colors.transparent,
                 borderRadius: BorderRadius.circular(LuminaRadius.xl),
                 border: Border.all(
-                  color: LuminaColors.surfaceTint.withOpacity(0.32),
-                  width: 1.5,
+                  color: frameBorderColor,
+                  width: isSuccess ? 2.5 : 1.5,
                 ),
               ),
             ),
           ),
 
-          if (!isPaused)
+          // Animasi Garis Scan (Dihilangkan saat success)
+          if (!isPaused && !isSuccess)
             AnimatedBuilder(
               animation: animation,
               builder: (context, child) {
-                final top = 18 + ((frameSize - 36) * animation.value);
+                final top = 18 + ((height - 36) * animation.value);
 
                 return Positioned(
                   left: 18,
@@ -425,32 +518,30 @@ class _ScannerFrame extends StatelessWidget {
               ),
             ),
 
-          const _ScannerCorner(
+          // Sudut-sudut (Corners)
+          _ScannerCorner(
             alignment: Alignment.topLeft,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(LuminaRadius.xl),
-            ),
+            borderRadius: const BorderRadius.only(topLeft: Radius.circular(LuminaRadius.xl)),
+            isSuccess: isSuccess,
           ),
-          const _ScannerCorner(
+          _ScannerCorner(
             alignment: Alignment.topRight,
-            borderRadius: BorderRadius.only(
-              topRight: Radius.circular(LuminaRadius.xl),
-            ),
+            borderRadius: const BorderRadius.only(topRight: Radius.circular(LuminaRadius.xl)),
+            isSuccess: isSuccess,
           ),
-          const _ScannerCorner(
+          _ScannerCorner(
             alignment: Alignment.bottomLeft,
-            borderRadius: BorderRadius.only(
-              bottomLeft: Radius.circular(LuminaRadius.xl),
-            ),
+            borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(LuminaRadius.xl)),
+            isSuccess: isSuccess,
           ),
-          const _ScannerCorner(
+          _ScannerCorner(
             alignment: Alignment.bottomRight,
-            borderRadius: BorderRadius.only(
-              bottomRight: Radius.circular(LuminaRadius.xl),
-            ),
+            borderRadius: const BorderRadius.only(bottomRight: Radius.circular(LuminaRadius.xl)),
+            isSuccess: isSuccess,
           ),
 
-          if (isPaused)
+          // Loading Indicator (Hanya saat processing tap bukan success snap)
+          if (isPaused && !isSuccess)
             Positioned.fill(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -479,16 +570,20 @@ class _ScannerCorner extends StatelessWidget {
   const _ScannerCorner({
     required this.alignment,
     required this.borderRadius,
+    this.isSuccess = false,
   });
 
   final Alignment alignment;
   final BorderRadius borderRadius;
+  final bool isSuccess;
 
   bool get _isTop => alignment.y < 0;
   bool get _isLeft => alignment.x < 0;
 
   @override
   Widget build(BuildContext context) {
+    final cornerColor = isSuccess ? Colors.greenAccent : LuminaColors.secondaryContainer;
+
     return Align(
       alignment: alignment,
       child: TweenAnimationBuilder<double>(
@@ -498,40 +593,29 @@ class _ScannerCorner extends StatelessWidget {
         builder: (context, value, child) {
           return Opacity(
             opacity: value,
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
               width: 50,
               height: 50,
               decoration: BoxDecoration(
                 borderRadius: borderRadius,
                 border: Border(
                   top: _isTop
-                      ? const BorderSide(
-                          color: LuminaColors.secondaryContainer,
-                          width: 4,
-                        )
+                      ? BorderSide(color: cornerColor, width: 4)
                       : BorderSide.none,
                   bottom: !_isTop
-                      ? const BorderSide(
-                          color: LuminaColors.secondaryContainer,
-                          width: 4,
-                        )
+                      ? BorderSide(color: cornerColor, width: 4)
                       : BorderSide.none,
                   left: _isLeft
-                      ? const BorderSide(
-                          color: LuminaColors.secondaryContainer,
-                          width: 4,
-                        )
+                      ? BorderSide(color: cornerColor, width: 4)
                       : BorderSide.none,
                   right: !_isLeft
-                      ? const BorderSide(
-                          color: LuminaColors.secondaryContainer,
-                          width: 4,
-                        )
+                      ? BorderSide(color: cornerColor, width: 4)
                       : BorderSide.none,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: LuminaColors.secondaryContainer.withOpacity(0.45),
+                    color: cornerColor.withOpacity(isSuccess ? 0.65 : 0.45),
                     blurRadius: 12,
                     spreadRadius: 1,
                   ),

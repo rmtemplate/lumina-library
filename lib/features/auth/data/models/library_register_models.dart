@@ -6,7 +6,10 @@ class LibraryRegisterProfileTypeModel {
     required this.institutionLabel,
     required this.majorLabel,
     required this.levelLabel,
-    this.requiresInstitution = true,
+    this.showInstitution = true,
+    this.showMajor = true,
+    this.showLevel = true,
+    this.requiresInstitution = false,
     this.requiresMajor = false,
     this.requiresLevel = false,
   });
@@ -14,9 +17,15 @@ class LibraryRegisterProfileTypeModel {
   final String id;
   final String label;
   final String description;
+
   final String institutionLabel;
   final String majorLabel;
   final String levelLabel;
+
+  final bool showInstitution;
+  final bool showMajor;
+  final bool showLevel;
+
   final bool requiresInstitution;
   final bool requiresMajor;
   final bool requiresLevel;

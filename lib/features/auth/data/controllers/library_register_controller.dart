@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import '../../data/models/library_register_models.dart';
+import '../models/library_register_models.dart';
 
 class LibraryRegisterController extends GetxController {
   final GlobalKey<FormState> formKey = GlobalKey<FormState>();
@@ -26,10 +26,13 @@ class LibraryRegisterController extends GetxController {
     LibraryRegisterProfileTypeModel(
       id: 'tk_paud',
       label: 'TK / PAUD',
-      description: 'Untuk peserta didik usia dini.',
+      description: 'Untuk peserta didik usia dini. Jurusan tidak diperlukan.',
       institutionLabel: 'Nama Sekolah / Lembaga',
-      majorLabel: 'Program',
-      levelLabel: 'Kelas / Kelompok',
+      majorLabel: 'Jurusan',
+      levelLabel: 'Kelompok / Kelas',
+      showInstitution: true,
+      showMajor: false,
+      showLevel: true,
       requiresInstitution: true,
       requiresMajor: false,
       requiresLevel: false,
@@ -37,10 +40,13 @@ class LibraryRegisterController extends GetxController {
     LibraryRegisterProfileTypeModel(
       id: 'sd_mi',
       label: 'SD / MI',
-      description: 'Untuk siswa sekolah dasar.',
+      description: 'Untuk siswa sekolah dasar. Jurusan tidak diperlukan.',
       institutionLabel: 'Nama Sekolah',
       majorLabel: 'Jurusan',
       levelLabel: 'Kelas',
+      showInstitution: true,
+      showMajor: false,
+      showLevel: true,
       requiresInstitution: true,
       requiresMajor: false,
       requiresLevel: true,
@@ -52,6 +58,9 @@ class LibraryRegisterController extends GetxController {
       institutionLabel: 'Nama Sekolah',
       majorLabel: 'Jurusan',
       levelLabel: 'Kelas',
+      showInstitution: true,
+      showMajor: false,
+      showLevel: true,
       requiresInstitution: true,
       requiresMajor: false,
       requiresLevel: true,
@@ -59,12 +68,16 @@ class LibraryRegisterController extends GetxController {
     LibraryRegisterProfileTypeModel(
       id: 'sma_smk_ma',
       label: 'SMA / SMK / MA',
-      description: 'Untuk siswa tingkat menengah atas.',
+      description:
+          'Untuk siswa tingkat menengah atas. Jurusan bisa diisi jika tersedia.',
       institutionLabel: 'Nama Sekolah',
-      majorLabel: 'Jurusan',
+      majorLabel: 'Jurusan / Peminatan',
       levelLabel: 'Kelas',
+      showInstitution: true,
+      showMajor: true,
+      showLevel: true,
       requiresInstitution: true,
-      requiresMajor: true,
+      requiresMajor: false,
       requiresLevel: true,
     ),
     LibraryRegisterProfileTypeModel(
@@ -74,6 +87,9 @@ class LibraryRegisterController extends GetxController {
       institutionLabel: 'Nama Kampus',
       majorLabel: 'Program Studi / Jurusan',
       levelLabel: 'Semester',
+      showInstitution: true,
+      showMajor: true,
+      showLevel: true,
       requiresInstitution: true,
       requiresMajor: true,
       requiresLevel: true,
@@ -85,6 +101,9 @@ class LibraryRegisterController extends GetxController {
       institutionLabel: 'Nama Perusahaan / Instansi',
       majorLabel: 'Divisi / Bidang',
       levelLabel: 'Posisi / Jabatan',
+      showInstitution: true,
+      showMajor: true,
+      showLevel: true,
       requiresInstitution: false,
       requiresMajor: false,
       requiresLevel: false,
@@ -92,10 +111,13 @@ class LibraryRegisterController extends GetxController {
     LibraryRegisterProfileTypeModel(
       id: 'umum',
       label: 'Umum',
-      description: 'Untuk pengguna umum.',
+      description: 'Untuk pengguna umum yang tidak sedang sekolah/kuliah.',
       institutionLabel: 'Instansi / Komunitas',
       majorLabel: 'Bidang Minat',
       levelLabel: 'Aktivitas Saat Ini',
+      showInstitution: false,
+      showMajor: true,
+      showLevel: true,
       requiresInstitution: false,
       requiresMajor: false,
       requiresLevel: false,
@@ -118,8 +140,8 @@ class LibraryRegisterController extends GetxController {
   String get password => passwordController.text;
   String get confirmPassword => confirmPasswordController.text;
 
-  void setProfileType(String? value) {
-    if (value == null || value.isEmpty) return;
+  void setProfileType(String value) {
+    if (value.trim().isEmpty) return;
 
     selectedProfileTypeId.value = value;
 
@@ -184,6 +206,7 @@ class LibraryRegisterController extends GetxController {
     final profileType = selectedProfileType;
     final text = value?.trim() ?? '';
 
+    if (!profileType.showInstitution) return null;
     if (!profileType.requiresInstitution) return null;
 
     if (text.isEmpty) {
@@ -197,6 +220,7 @@ class LibraryRegisterController extends GetxController {
     final profileType = selectedProfileType;
     final text = value?.trim() ?? '';
 
+    if (!profileType.showMajor) return null;
     if (!profileType.requiresMajor) return null;
 
     if (text.isEmpty) {
@@ -210,6 +234,7 @@ class LibraryRegisterController extends GetxController {
     final profileType = selectedProfileType;
     final text = value?.trim() ?? '';
 
+    if (!profileType.showLevel) return null;
     if (!profileType.requiresLevel) return null;
 
     if (text.isEmpty) {
@@ -257,9 +282,12 @@ class LibraryRegisterController extends GetxController {
       password: password,
       profileTypeId: profileType.id,
       profileTypeLabel: profileType.label,
-      institutionName: institutionName.isEmpty ? null : institutionName,
-      majorName: majorName.isEmpty ? null : majorName,
-      currentLevel: currentLevel.isEmpty ? null : currentLevel,
+      institutionName: !profileType.showInstitution || institutionName.isEmpty
+          ? null
+          : institutionName,
+      majorName: !profileType.showMajor || majorName.isEmpty ? null : majorName,
+      currentLevel:
+          !profileType.showLevel || currentLevel.isEmpty ? null : currentLevel,
     );
   }
 
@@ -286,10 +314,6 @@ class LibraryRegisterController extends GetxController {
     try {
       final payload = buildPayload();
 
-      // TODO:
-      // Ganti simulasi ini dengan API register.
-      // Contoh:
-      // await api.post('/api/v1/auth/register', data: payload.toJson());
       debugPrint('REGISTER_PAYLOAD: ${payload.toJson()}');
 
       await Future<void>.delayed(const Duration(milliseconds: 900));

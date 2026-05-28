@@ -46,11 +46,11 @@ class LuminaRoleRouter {
   static void goToLogin() {
     Get.offAll(
       () =>  LibraryLoginPage(
-        logoAssetPath: 'images/logo/lumina-logo.webp',
+        logoAssetPath: 'assets/images/logo/lumina-logo.png',
         onRegisterTap: () {
           Get.to(
             () => const LibraryRegisterPage(
-              logoAssetPath: 'images/logo/lumina-logo.webp',
+              logoAssetPath: 'assets/images/logo/lumina-logo.png',
             ),
           );
         },
