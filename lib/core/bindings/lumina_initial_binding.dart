@@ -1,6 +1,9 @@
 import 'package:get/get.dart';
 
+import 'package:lumina_library/core/network/lumina_api_client.dart';
 import 'package:lumina_library/features/auth/data/controllers/auth_role_controller.dart';
+import 'package:lumina_library/features/auth/data/services/auth_api_service.dart';
+import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/cart/library_cart_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_catalog_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';
@@ -15,6 +18,18 @@ import 'package:lumina_library/features/staff/presentation/controllers/report/st
 class LuminaInitialBinding extends Bindings {
   @override
   void dependencies() {
+    // ── Network & Auth ─────────────────────────────────────────────────────
+    Get.put(const LuminaApiClient(), permanent: true);
+    Get.put(
+      AuthApiService(Get.find<LuminaApiClient>()),
+      permanent: true,
+    );
+    Get.put(
+      HomeApiService(Get.find<LuminaApiClient>()),
+      permanent: true,
+    );
+
+    // ── Feature controllers ────────────────────────────────────────────────
     Get.lazyPut<AuthRoleController>(() => AuthRoleController(), fenix: true);
     Get.lazyPut<LibraryHomeController>(() => LibraryHomeController(), fenix: true);
     Get.lazyPut<LibraryDashboardController>(() => LibraryDashboardController(), fenix: true);

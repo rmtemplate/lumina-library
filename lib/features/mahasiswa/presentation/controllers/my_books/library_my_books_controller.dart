@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:lumina_library/shared/models/book/library_my_book_item_model.dart';
 
 class LibraryMyBooksController extends GetxController {
+  // ── Filter ────────────────────────────────────────────────────────────────
+
   final RxInt selectedFilterIndex = 0.obs;
 
   final List<String> filters = const [
@@ -13,8 +15,32 @@ class LibraryMyBooksController extends GetxController {
     'Returned',
   ];
 
-  final List<LibraryMyBookItemModel> books = const [
-    LibraryMyBookItemModel(
+  // ── Pagination state ──────────────────────────────────────────────────────
+
+  /// Halaman yang sedang dimuat (1-based).
+  final RxInt _currentPage = 1.obs;
+
+  /// Loading pertama kali (menampilkan skeleton full).
+  final RxBool isInitialLoading = true.obs;
+
+  /// Loading saat pull-to-refresh.
+  final RxBool isRefreshing = false.obs;
+
+  /// Loading saat load more (infinite scroll).
+  final RxBool isLoadingMore = false.obs;
+
+  /// Masih ada data berikutnya atau tidak.
+  final RxBool hasMore = true.obs;
+
+  // ── Data ──────────────────────────────────────────────────────────────────
+
+  final RxList<LibraryMyBookItemModel> _allBooks =
+      <LibraryMyBookItemModel>[].obs;
+
+  // Semua data dummy disimpan di sini. Pada integrasi API, ini diganti dengan
+  // RxList yang diisi dari server, page per page.
+  static final List<LibraryMyBookItemModel> _dummyPage1 = [
+    const LibraryMyBookItemModel(
       loanId: 'LMN-8472-91A',
       bookCode: 'BK-UX-001',
       title: 'Modern UX Design',
@@ -37,7 +63,7 @@ class LibraryMyBooksController extends GetxController {
       category: 'Design',
       notes: 'Show your return QR code to the librarian at the return desk.',
     ),
-    LibraryMyBookItemModel(
+    const LibraryMyBookItemModel(
       loanId: 'LMN-8472-91B',
       bookCode: 'BK-ARCH-004',
       title: 'Clean Architecture',
@@ -60,7 +86,10 @@ class LibraryMyBooksController extends GetxController {
       category: 'Computer Science',
       notes: 'Please keep the book in good condition before returning it.',
     ),
-    LibraryMyBookItemModel(
+  ];
+
+  static final List<LibraryMyBookItemModel> _dummyPage2 = [
+    const LibraryMyBookItemModel(
       loanId: 'LMN-8472-91C',
       bookCode: 'BK-PSY-010',
       title: 'Atomic Habits',
@@ -83,10 +112,9 @@ class LibraryMyBooksController extends GetxController {
       status: LibraryMyBookStatus.overdue,
       isbn: '978-0735211292',
       category: 'Psychology',
-      notes:
-          'This loan is overdue. The fine must be paid when returning the book.',
+      notes: 'This loan is overdue. The fine must be paid when returning.',
     ),
-    LibraryMyBookItemModel(
+    const LibraryMyBookItemModel(
       loanId: 'LMN-8472-91D',
       bookCode: 'BK-HIS-002',
       title: 'Sapiens',
@@ -112,12 +140,80 @@ class LibraryMyBooksController extends GetxController {
     ),
   ];
 
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+  @override
+  void onInit() {
+    super.onInit();
+    _loadInitial();
+  }
+
+  // ── Reset (dipanggil saat tab My Books dibuka) ────────────────────────────
+
+  /// Reset filter ke "All". Dipanggil dari [LibraryHomeController]
+  /// setiap kali user berpindah ke tab My Books.
+  void resetFilter() {
+    if (selectedFilterIndex.value != 0) {
+      selectedFilterIndex.value = 0;
+    }
+  }
+
+  // ── Load data ─────────────────────────────────────────────────────────────
+
+  Future<void> _loadInitial() async {
+    isInitialLoading.value = true;
+    _currentPage.value = 1;
+    _allBooks.clear();
+    hasMore.value = true;
+
+    await _simulateFetch(page: 1);
+    isInitialLoading.value = false;
+  }
+
+  Future<void> refresh() async {
+    if (isRefreshing.value) return;
+    isRefreshing.value = true;
+    _currentPage.value = 1;
+    _allBooks.clear();
+    hasMore.value = true;
+
+    await _simulateFetch(page: 1);
+    isRefreshing.value = false;
+  }
+
+  Future<void> loadMore() async {
+    if (isLoadingMore.value || !hasMore.value || isInitialLoading.value) return;
+    isLoadingMore.value = true;
+
+    final nextPage = _currentPage.value + 1;
+    await _simulateFetch(page: nextPage);
+
+    isLoadingMore.value = false;
+  }
+
+  // Simulasi fetch — ganti dengan API call saat integrasi backend.
+  Future<void> _simulateFetch({required int page}) async {
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+
+    if (page == 1) {
+      _allBooks.assignAll(_dummyPage1);
+      _currentPage.value = 1;
+    } else if (page == 2) {
+      _allBooks.addAll(_dummyPage2);
+      _currentPage.value = 2;
+      hasMore.value = false; // tidak ada page 3
+    } else {
+      hasMore.value = false;
+    }
+  }
+
+  // ── Filtered data ─────────────────────────────────────────────────────────
+
   List<LibraryMyBookItemModel> get filteredBooks {
     final selectedFilter = filters[selectedFilterIndex.value];
+    if (selectedFilter == 'All') return _allBooks.toList(growable: false);
 
-    if (selectedFilter == 'All') return books;
-
-    return books.where((book) {
+    return _allBooks.where((book) {
       switch (selectedFilter) {
         case 'Active':
           return book.status == LibraryMyBookStatus.active;
@@ -133,57 +229,41 @@ class LibraryMyBooksController extends GetxController {
     }).toList(growable: false);
   }
 
-  int get activeCount {
-    return books
-        .where(
-          (book) =>
-              book.status == LibraryMyBookStatus.active ||
-              book.status == LibraryMyBookStatus.dueSoon,
-        )
-        .length;
-  }
+  // ── Stats ─────────────────────────────────────────────────────────────────
 
-  int get dueSoonCount {
-    return books
-        .where((book) => book.status == LibraryMyBookStatus.dueSoon)
-        .length;
-  }
+  int get activeCount => _allBooks
+      .where((b) =>
+          b.status == LibraryMyBookStatus.active ||
+          b.status == LibraryMyBookStatus.dueSoon)
+      .length;
 
-  int get overdueCount {
-    return books
-        .where((book) => book.status == LibraryMyBookStatus.overdue)
-        .length;
-  }
+  int get dueSoonCount =>
+      _allBooks.where((b) => b.status == LibraryMyBookStatus.dueSoon).length;
 
-  int get returnedCount {
-    return books
-        .where((book) => book.status == LibraryMyBookStatus.finished)
-        .length;
-  }
+  int get overdueCount =>
+      _allBooks.where((b) => b.status == LibraryMyBookStatus.overdue).length;
 
-  int get totalFineAmount {
-    return books.fold<int>(
-      0,
-      (total, book) => total + book.fineAmount,
-    );
-  }
+  int get returnedCount =>
+      _allBooks.where((b) => b.status == LibraryMyBookStatus.finished).length;
+
+  int get totalFineAmount =>
+      _allBooks.fold(0, (total, b) => total + b.fineAmount);
 
   LibraryMyBookItemModel? get priorityReminderBook {
-    for (final book in books) {
-      if (book.status == LibraryMyBookStatus.overdue) return book;
+    for (final b in _allBooks) {
+      if (b.status == LibraryMyBookStatus.overdue) return b;
     }
-
-    for (final book in books) {
-      if (book.status == LibraryMyBookStatus.dueSoon) return book;
+    for (final b in _allBooks) {
+      if (b.status == LibraryMyBookStatus.dueSoon) return b;
     }
-
     return null;
   }
+
+  // ── Filter action ─────────────────────────────────────────────────────────
 
   void setFilterIndex(int index) {
     if (index < 0 || index >= filters.length) return;
     if (selectedFilterIndex.value == index) return;
-
     selectedFilterIndex.value = index;
   }
 }

@@ -55,8 +55,8 @@ class _LibraryFeaturedBannerState extends State<LibraryFeaturedBanner> {
               return _BannerItem(
                 title: banner.title,
                 subtitle: banner.subtitle,
-                // Gunakan icon dari data, atau default ke Icons.image_rounded
-                icon: banner.icon ?? Icons.image_rounded, 
+                icon: banner.icon ?? Icons.image_rounded,
+                imageUrl: banner.imageUrl,
               );
             },
           ),
@@ -97,6 +97,119 @@ class _BannerItem extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.icon,
+    this.imageUrl,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String? imageUrl;
+
+  bool get _hasImage => imageUrl != null && imageUrl!.isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(LuminaRadius.xl),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: LuminaColors.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(LuminaRadius.xl),
+          border: Border.all(color: LuminaColors.outlineVariant, width: 1),
+        ),
+        child: _hasImage ? _ImageBanner(title: title, subtitle: subtitle, imageUrl: imageUrl!) : _IconBanner(title: title, subtitle: subtitle, icon: icon),
+      ),
+    );
+  }
+}
+
+class _ImageBanner extends StatelessWidget {
+  const _ImageBanner({
+    required this.title,
+    required this.subtitle,
+    required this.imageUrl,
+  });
+
+  final String title;
+  final String subtitle;
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(
+            color: LuminaColors.surfaceContainerHigh,
+            child: const Center(
+              child: Icon(Icons.image_not_supported_rounded,
+                  color: LuminaColors.outline, size: 32),
+            ),
+          ),
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return Container(color: LuminaColors.surfaceContainerHigh);
+          },
+        ),
+        // Gradient overlay bawah agar teks terbaca
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 0.65),
+                ],
+                stops: const [0.4, 1.0],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          left: LuminaSpacing.md,
+          right: LuminaSpacing.md,
+          bottom: LuminaSpacing.md,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: LuminaTextStyles.titleLg.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              if (subtitle.isNotEmpty)
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: LuminaTextStyles.bodyMd.copyWith(
+                    color: Colors.white.withValues(alpha: 0.85),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _IconBanner extends StatelessWidget {
+  const _IconBanner({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
   });
 
   final String title;
@@ -105,18 +218,8 @@ class _BannerItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return Padding(
       padding: const EdgeInsets.all(LuminaSpacing.lg),
-      clipBehavior: Clip.hardEdge,
-      decoration: BoxDecoration(
-        color: LuminaColors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(LuminaRadius.xl),
-        border: Border.all(
-          color: LuminaColors.outlineVariant,
-          width: 1,
-        ),
-      ),
       child: Stack(
         children: [
           Positioned(
@@ -125,18 +228,16 @@ class _BannerItem extends StatelessWidget {
             child: Icon(
               Icons.local_library_rounded,
               size: 132,
-              color: LuminaColors.primary.withOpacity(0.08),
+              color: LuminaColors.primary.withValues(alpha: 0.08),
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Icon(
-                icon,
-                color: LuminaColors.onSurfaceVariant.withOpacity(0.60),
-                size: 38,
-              ),
+              Icon(icon,
+                  color: LuminaColors.onSurfaceVariant.withValues(alpha: 0.60),
+                  size: 38),
               const SizedBox(height: LuminaSpacing.sm),
               Text(
                 title,

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'package:lumina_library/core/network/lumina_api_exception.dart';
+import 'package:lumina_library/core/routing/lumina_role_router.dart';
+import 'package:lumina_library/features/auth/data/services/auth_api_service.dart';
+import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
 import '../models/library_register_models.dart';
 
 class LibraryRegisterController extends GetxController {
@@ -21,6 +25,17 @@ class LibraryRegisterController extends GetxController {
   final RxBool isConfirmPasswordVisible = false.obs;
   final RxBool isAgreementChecked = false.obs;
   final RxBool isLoading = false.obs;
+
+  /// Mapping dari local profile type id → UUID di backend (dari ProfileTypeSeeder).
+  static const Map<String, String> _profileTypeUuids = {
+    'tk_paud': 'a1b2c3d4-0001-4000-8000-000000000001',
+    'sd_mi': 'a1b2c3d4-0001-4000-8000-000000000002',
+    'smp_mts': 'a1b2c3d4-0001-4000-8000-000000000003',
+    'sma_smk_ma': 'a1b2c3d4-0001-4000-8000-000000000004',
+    'mahasiswa': 'a1b2c3d4-0001-4000-8000-000000000005',
+    'bekerja': 'a1b2c3d4-0001-4000-8000-000000000006',
+    'umum': 'a1b2c3d4-0001-4000-8000-000000000007',
+  };
 
   static const List<LibraryRegisterProfileTypeModel> profileTypes = [
     LibraryRegisterProfileTypeModel(
@@ -291,53 +306,59 @@ class LibraryRegisterController extends GetxController {
     );
   }
 
-  Future<void> submitRegister({
-    VoidCallback? onSuccess,
-  }) async {
+  Future<void> submitRegister({VoidCallback? onSuccess}) async {
     final isValid = formKey.currentState?.validate() ?? false;
-
     if (!isValid) return;
 
     if (!isAgreementChecked.value) {
-      Get.snackbar(
-        'Persetujuan Dibutuhkan',
-        'Centang persetujuan untuk melanjutkan registrasi.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      );
+      LuminaToast.warning('Centang persetujuan untuk melanjutkan registrasi.');
+      return;
+    }
+
+    final profileType = selectedProfileType;
+    final profileTypeUuid = _profileTypeUuids[profileType.id];
+    if (profileTypeUuid == null) {
+      LuminaToast.error('Tipe profil tidak valid. Silakan pilih ulang.');
       return;
     }
 
     isLoading.value = true;
 
     try {
-      final payload = buildPayload();
-
-      debugPrint('REGISTER_PAYLOAD: ${payload.toJson()}');
-
-      await Future<void>.delayed(const Duration(milliseconds: 900));
+      final authService = Get.find<AuthApiService>();
+      await authService.register(
+        fullname: fullname,
+        email: email,
+        phone: phone.isEmpty ? null : phone,
+        profileTypeId: profileTypeUuid,
+        institutionName: profileType.showInstitution && institutionName.isNotEmpty
+            ? institutionName
+            : null,
+        majorName: profileType.showMajor && majorName.isNotEmpty
+            ? majorName
+            : null,
+        currentLevel: profileType.showLevel && currentLevel.isNotEmpty
+            ? currentLevel
+            : null,
+        password: password,
+        passwordConfirmation: confirmPassword,
+      );
 
       if (onSuccess != null) {
         onSuccess();
         return;
       }
 
-      Get.snackbar(
-        'Register Berhasil',
-        'Akun Anda berhasil dibuat.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
+      LuminaToast.success(
+        'Akun berhasil dibuat. Cek email untuk verifikasi.',
+        duration: const Duration(seconds: 4),
       );
+
+      LuminaRoleRouter.goToLogin();
+    } on LuminaApiException catch (e) {
+      LuminaToast.error(e.displayMessage);
     } catch (_) {
-      Get.snackbar(
-        'Register Gagal',
-        'Terjadi kesalahan saat membuat akun. Silakan coba lagi.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      );
+      LuminaToast.error('Terjadi kesalahan. Silakan coba lagi.');
     } finally {
       isLoading.value = false;
     }

@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'package:lumina_library/core/routing/lumina_role_router.dart';
+import 'package:lumina_library/core/services/lumina_permission_service.dart';
+import 'package:lumina_library/core/services/lumina_storage_service.dart';
 import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
-import 'package:lumina_library/core/routing/lumina_role_router.dart';
-
 import 'package:lumina_library/features/onboarding/presentation/models/onboarding_slide_model.dart';
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({
@@ -80,9 +81,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 
   void _goToHome() {
-    LuminaRoleRouter.goToLogin();
-    // LuminaRoleRouter.goToMahasiswaHome();
-    // LuminaRoleRouter.goToStaffHome();
+    LuminaStorageService.markOnboardingDone();
+    LuminaPermissionService.navigateWithCheck(LuminaRoleRouter.goToLogin);
   }
 
   @override

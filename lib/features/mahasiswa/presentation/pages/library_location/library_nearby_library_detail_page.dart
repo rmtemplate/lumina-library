@@ -522,29 +522,40 @@ class _MetricTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: LuminaColors.primary, size: 22),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: LuminaTextStyles.labelMd.copyWith(
-              color: LuminaColors.onSurfaceVariant,
-              letterSpacing: 0,
-              fontWeight: FontWeight.w700,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: LuminaColors.primary, size: 20),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: LuminaTextStyles.labelMd.copyWith(
+                color: LuminaColors.onSurfaceVariant,
+                letterSpacing: 0,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: LuminaTextStyles.bodyMd.copyWith(
-              color: LuminaColors.onSurface,
-              fontWeight: FontWeight.w900,
+            const SizedBox(height: 2),
+            Text(
+              value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: LuminaTextStyles.labelMd.copyWith(
+                color: LuminaColors.onSurface,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+                fontSize: 11,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -555,7 +566,7 @@ class _MetricDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: 1,
-      height: 46,
+      height: 44,
       color: LuminaColors.surfaceVariant,
     );
   }

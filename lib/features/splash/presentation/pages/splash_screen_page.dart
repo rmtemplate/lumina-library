@@ -2,6 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:lumina_library/core/network/lumina_api_exception.dart';
+import 'package:lumina_library/core/routing/lumina_role_router.dart';
+import 'package:lumina_library/core/services/lumina_permission_service.dart';
+import 'package:lumina_library/core/services/lumina_storage_service.dart';
+import 'package:lumina_library/features/auth/data/models/auth_models.dart';
+import 'package:lumina_library/features/auth/data/services/auth_api_service.dart';
 import 'package:lumina_library/features/onboarding/presentation/pages/onboarding_page.dart';
 
 import 'package:lumina_library/core/theme/lumina_colors.dart';
@@ -55,7 +61,68 @@ class _SplashScreenPageState extends State<SplashScreenPage>
 
   void _goToHome() {
     if (!mounted) return;
+    _resolveDestination();
+  }
 
+  Future<void> _resolveDestination() async {
+    if (!mounted) return;
+
+    // Jika ada token tersimpan, coba restore session.
+    if (LuminaStorageService.hasSession) {
+      await _tryRestoreSession();
+      return;
+    }
+
+    // Tidak ada session — tampilkan onboarding atau login.
+    _navigateToOnboardingOrLogin();
+  }
+
+  Future<void> _tryRestoreSession() async {
+    try {
+      final authService = Get.find<AuthApiService>();
+      final user = await authService.me();
+
+      LuminaStorageService.saveUser(user.toJson());
+
+      if (!mounted) return;
+      final role = user.isStaff ? 'STAFF' : 'MEMBER';
+      await LuminaPermissionService.navigateWithCheck(
+        () => LuminaRoleRouter.navigateAfterLogin(role),
+      );
+    } on LuminaApiException catch (e) {
+      if (e.isUnauthorized) {
+        LuminaStorageService.clearSession();
+      }
+      if (!mounted) return;
+      await _navigateToOnboardingOrLogin();
+    } catch (_) {
+      // Gagal jaringan — coba gunakan data user yang tersimpan.
+      final userJson = LuminaStorageService.getUser();
+      if (!mounted) return;
+
+      if (userJson != null) {
+        final user = AuthUserModel.fromJson(userJson);
+        final role = user.isStaff ? 'STAFF' : 'MEMBER';
+        await LuminaPermissionService.navigateWithCheck(
+          () => LuminaRoleRouter.navigateAfterLogin(role),
+        );
+      } else {
+        await _navigateToOnboardingOrLogin();
+      }
+    }
+  }
+
+  Future<void> _navigateToOnboardingOrLogin() async {
+    if (!mounted) return;
+
+    if (LuminaStorageService.isOnboardingDone) {
+      await LuminaPermissionService.navigateWithCheck(
+        LuminaRoleRouter.goToLogin,
+      );
+      return;
+    }
+
+    // Onboarding belum selesai — permission gate ditampilkan setelah onboarding.
     Get.off(
       () => const OnboardingPage(),
       transition: Transition.fadeIn,

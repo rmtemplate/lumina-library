@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'package:lumina_library/core/routing/lumina_role_router.dart';
+import 'package:lumina_library/core/services/lumina_storage_service.dart';
+import 'package:lumina_library/features/auth/data/services/auth_api_service.dart';
 import '../../core/theme/lumina_colors.dart';
 import '../models/profile/lumina_profile_models.dart';
 
@@ -345,16 +348,7 @@ class LuminaProfileController extends GetxController {
                     child: SizedBox(
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: () {
-                          Get.back();
-                          Get.snackbar(
-                            'Logout',
-                            'Anda berhasil keluar.',
-                            snackPosition: SnackPosition.BOTTOM,
-                            margin: const EdgeInsets.all(16),
-                            duration: const Duration(seconds: 2),
-                          );
-                        },
+                        onPressed: _executeLogout,
                         style: ElevatedButton.styleFrom(
                           elevation: 0,
                           backgroundColor: LuminaColors.error,
@@ -371,5 +365,20 @@ class LuminaProfileController extends GetxController {
         ),
       ),
     );
+  }
+
+  Future<void> _executeLogout() async {
+    Get.back(); // tutup bottom sheet
+
+    try {
+      // Fire-and-forget: tidak perlu menunggu API logout selesai.
+      // Token sudah dihapus dari storage sehingga request berikutnya akan gagal.
+      Get.find<AuthApiService>().logout().ignore();
+    } catch (_) {
+      // Abaikan error jaringan saat logout.
+    }
+
+    LuminaStorageService.clearSession();
+    LuminaRoleRouter.goToLogin();
   }
 }

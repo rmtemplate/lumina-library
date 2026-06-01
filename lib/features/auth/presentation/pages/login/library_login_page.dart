@@ -7,7 +7,7 @@ import '../../../../../core/theme/lumina_spacing.dart';
 import '../../../../../core/theme/lumina_text_styles.dart';
 import '../../../data/controllers/library_login_controller.dart';
 
-class LibraryLoginPage extends StatelessWidget {
+class LibraryLoginPage extends StatefulWidget {
   const LibraryLoginPage({
     super.key,
     this.logoAssetPath,
@@ -16,22 +16,80 @@ class LibraryLoginPage extends StatelessWidget {
     this.onForgotPasswordTap,
   });
 
-  /// Isi nanti dengan path logo kamu.
-  ///
-  /// Contoh:
-  /// logoAssetPath: 'assets/images/lumina_logo.png'
   final String? logoAssetPath;
-
   final VoidCallback? onLoginSuccess;
   final VoidCallback? onRegisterTap;
   final VoidCallback? onForgotPasswordTap;
 
-  LibraryLoginController get controller {
-    if (Get.isRegistered<LibraryLoginController>()) {
-      return Get.find<LibraryLoginController>();
+  @override
+  State<LibraryLoginPage> createState() => _LibraryLoginPageState();
+}
+
+class _LibraryLoginPageState extends State<LibraryLoginPage> {
+  final _formKey = GlobalKey<FormState>();
+
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+
+  late final LibraryLoginController controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    controller = Get.isRegistered<LibraryLoginController>()
+        ? Get.find<LibraryLoginController>()
+        : Get.put(LibraryLoginController());
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+
+    super.dispose();
+  }
+
+  Future<void> _submitLogin() async {
+    final isValid = _formKey.currentState?.validate() ?? false;
+
+    if (!isValid) return;
+
+    await controller.submitLogin(
+      email: _emailController.text.trim(),
+      password: _passwordController.text,
+      onSuccess: widget.onLoginSuccess,
+    );
+  }
+
+  void _handleRegisterTap() {
+    if (widget.onRegisterTap != null) {
+      widget.onRegisterTap!();
+      return;
     }
 
-    return Get.put(LibraryLoginController());
+    Get.snackbar(
+      'Register',
+      'Halaman register belum tersedia.',
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(16),
+      duration: const Duration(seconds: 2),
+    );
+  }
+
+  void _handleForgotPasswordTap() {
+    if (widget.onForgotPasswordTap != null) {
+      widget.onForgotPasswordTap!();
+      return;
+    }
+
+    Get.snackbar(
+      'Lupa Password',
+      'Fitur lupa password belum tersedia.',
+      snackPosition: SnackPosition.BOTTOM,
+      margin: const EdgeInsets.all(16),
+      duration: const Duration(seconds: 2),
+    );
   }
 
   @override
@@ -48,11 +106,14 @@ class LibraryLoginPage extends StatelessWidget {
                 maxWidth: 430,
               ),
               child: _LoginCard(
+                formKey: _formKey,
                 controller: controller,
-                logoAssetPath: logoAssetPath,
-                onLoginSuccess: onLoginSuccess,
-                onRegisterTap: onRegisterTap,
-                onForgotPasswordTap: onForgotPasswordTap,
+                emailController: _emailController,
+                passwordController: _passwordController,
+                logoAssetPath: widget.logoAssetPath,
+                onSubmit: _submitLogin,
+                onRegisterTap: _handleRegisterTap,
+                onForgotPasswordTap: _handleForgotPasswordTap,
               ),
             ),
           ),
@@ -64,18 +125,24 @@ class LibraryLoginPage extends StatelessWidget {
 
 class _LoginCard extends StatelessWidget {
   const _LoginCard({
+    required this.formKey,
     required this.controller,
+    required this.emailController,
+    required this.passwordController,
     required this.logoAssetPath,
-    required this.onLoginSuccess,
+    required this.onSubmit,
     required this.onRegisterTap,
     required this.onForgotPasswordTap,
   });
 
+  final GlobalKey<FormState> formKey;
   final LibraryLoginController controller;
+  final TextEditingController emailController;
+  final TextEditingController passwordController;
   final String? logoAssetPath;
-  final VoidCallback? onLoginSuccess;
-  final VoidCallback? onRegisterTap;
-  final VoidCallback? onForgotPasswordTap;
+  final VoidCallback onSubmit;
+  final VoidCallback onRegisterTap;
+  final VoidCallback onForgotPasswordTap;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +166,6 @@ class _LoginCard extends StatelessWidget {
       child: Column(
         children: [
           const _LoginTopAccent(),
-
           Padding(
             padding: const EdgeInsets.fromLTRB(
               LuminaSpacing.lg,
@@ -108,45 +174,36 @@ class _LoginCard extends StatelessWidget {
               LuminaSpacing.lg,
             ),
             child: Form(
-              key: controller.formKey,
+              key: formKey,
               autovalidateMode: AutovalidateMode.onUserInteraction,
               child: Column(
                 children: [
                   _LoginHeader(
                     logoAssetPath: logoAssetPath,
                   ),
-
                   const SizedBox(height: LuminaSpacing.xl),
-
                   _LoginEmailField(
                     controller: controller,
+                    emailController: emailController,
                   ),
-
                   const SizedBox(height: LuminaSpacing.md),
-
                   _LoginPasswordField(
                     controller: controller,
+                    passwordController: passwordController,
+                    onSubmit: onSubmit,
                   ),
-
                   const SizedBox(height: LuminaSpacing.sm),
-
                   _ForgotPasswordButton(
                     onTap: onForgotPasswordTap,
                   ),
-
                   const SizedBox(height: LuminaSpacing.md),
-
                   _LoginSubmitButton(
                     controller: controller,
-                    onLoginSuccess: onLoginSuccess,
+                    onSubmit: onSubmit,
                   ),
-
                   const SizedBox(height: LuminaSpacing.xl),
-
                   const _LoginDivider(),
-
                   const SizedBox(height: LuminaSpacing.lg),
-
                   _RegisterTextButton(
                     onRegisterTap: onRegisterTap,
                   ),
@@ -187,9 +244,7 @@ class _LoginHeader extends StatelessWidget {
         _LoginLogo(
           logoAssetPath: logoAssetPath,
         ),
-
         const SizedBox(height: LuminaSpacing.lg),
-
         Text(
           'Selamat Datang',
           textAlign: TextAlign.center,
@@ -199,9 +254,7 @@ class _LoginHeader extends StatelessWidget {
             height: 1.12,
           ),
         ),
-
         const SizedBox(height: LuminaSpacing.xs),
-
         Text(
           'Masuk ke akun Lumina Library Anda.',
           textAlign: TextAlign.center,
@@ -272,14 +325,16 @@ class _LoginLogoFallback extends StatelessWidget {
 class _LoginEmailField extends StatelessWidget {
   const _LoginEmailField({
     required this.controller,
+    required this.emailController,
   });
 
   final LibraryLoginController controller;
+  final TextEditingController emailController;
 
   @override
   Widget build(BuildContext context) {
     return _AuthTextField(
-      controller: controller.emailController,
+      controller: emailController,
       label: 'Email',
       hintText: 'Masukkan email Anda',
       icon: Icons.email_outlined,
@@ -293,9 +348,13 @@ class _LoginEmailField extends StatelessWidget {
 class _LoginPasswordField extends StatelessWidget {
   const _LoginPasswordField({
     required this.controller,
+    required this.passwordController,
+    required this.onSubmit,
   });
 
   final LibraryLoginController controller;
+  final TextEditingController passwordController;
+  final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -303,22 +362,18 @@ class _LoginPasswordField extends StatelessWidget {
       final isVisible = controller.isPasswordVisible.value;
 
       return _AuthTextField(
-        controller: controller.passwordController,
+        controller: passwordController,
         label: 'Password',
         hintText: 'Masukkan password',
         icon: Icons.lock_outline_rounded,
         obscureText: !isVisible,
         textInputAction: TextInputAction.done,
         validator: controller.validatePassword,
-        onSubmitted: (_) {
-          controller.submitLogin();
-        },
+        onSubmitted: (_) => onSubmit(),
         suffixIcon: IconButton(
           onPressed: controller.togglePasswordVisibility,
           icon: Icon(
-            isVisible
-                ? Icons.visibility_rounded
-                : Icons.visibility_off_rounded,
+            isVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
             color: LuminaColors.onSurfaceVariant,
             size: 21,
           ),
@@ -432,23 +487,14 @@ class _ForgotPasswordButton extends StatelessWidget {
     required this.onTap,
   });
 
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Align(
       alignment: Alignment.centerRight,
       child: TextButton(
-        onPressed: onTap ??
-            () {
-              Get.snackbar(
-                'Lupa Password',
-                'Fitur lupa password belum tersedia.',
-                snackPosition: SnackPosition.BOTTOM,
-                margin: const EdgeInsets.all(16),
-                duration: const Duration(seconds: 2),
-              );
-            },
+        onPressed: onTap,
         style: TextButton.styleFrom(
           foregroundColor: LuminaColors.primary,
           padding: const EdgeInsets.symmetric(
@@ -476,11 +522,11 @@ class _ForgotPasswordButton extends StatelessWidget {
 class _LoginSubmitButton extends StatelessWidget {
   const _LoginSubmitButton({
     required this.controller,
-    required this.onLoginSuccess,
+    required this.onSubmit,
   });
 
   final LibraryLoginController controller;
-  final VoidCallback? onLoginSuccess;
+  final VoidCallback onSubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -491,13 +537,7 @@ class _LoginSubmitButton extends StatelessWidget {
         width: double.infinity,
         height: 52,
         child: ElevatedButton(
-          onPressed: isLoading
-              ? null
-              : () {
-                  controller.submitLogin(
-                    onSuccess: onLoginSuccess,
-                  );
-                },
+          onPressed: isLoading ? null : onSubmit,
           style: ElevatedButton.styleFrom(
             elevation: 0,
             backgroundColor: LuminaColors.primary,
@@ -588,7 +628,7 @@ class _RegisterTextButton extends StatelessWidget {
     required this.onRegisterTap,
   });
 
-  final VoidCallback? onRegisterTap;
+  final VoidCallback onRegisterTap;
 
   @override
   Widget build(BuildContext context) {
@@ -603,16 +643,7 @@ class _RegisterTextButton extends StatelessWidget {
           ),
         ),
         TextButton(
-          onPressed: onRegisterTap ??
-              () {
-                Get.snackbar(
-                  'Register',
-                  'Halaman register belum tersedia.',
-                  snackPosition: SnackPosition.BOTTOM,
-                  margin: const EdgeInsets.all(16),
-                  duration: const Duration(seconds: 2),
-                );
-              },
+          onPressed: onRegisterTap,
           style: TextButton.styleFrom(
             foregroundColor: LuminaColors.primary,
             padding: const EdgeInsets.symmetric(

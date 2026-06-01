@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
+import 'package:lumina_library/core/theme/lumina_text_styles.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/home/library_dashboard_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/cart/library_cart_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/catalog/library_book_detail_page.dart';
@@ -12,108 +13,154 @@ import 'package:lumina_library/features/mahasiswa/presentation/widgets/catalog/l
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/home/library_category_icon_item.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/home/library_featured_banner.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/home/library_home_top_bar.dart';
-import 'package:lumina_library/features/mahasiswa/presentation/widgets/home/library_promo_banner_card.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/home/library_reminder_banner.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/layout/library_section_header.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/library_location/library_nearby_library_slider.dart';
-import 'package:lumina_library/shared/models/banner/library_banner_model.dart';
+import 'package:lumina_library/shared/models/book/book_model.dart';
+import 'package:lumina_library/shared/models/category/category_model.dart';
+import 'package:lumina_library/shared/widgets/skeleton/lumina_skeleton.dart';
 
 class LibraryDashboardPage extends StatelessWidget {
   const LibraryDashboardPage({super.key});
 
-  LibraryDashboardController get controller => Get.isRegistered<LibraryDashboardController>()
-      ? Get.find<LibraryDashboardController>()
-      : Get.put(LibraryDashboardController(), permanent: true);
+  LibraryDashboardController get controller =>
+      Get.isRegistered<LibraryDashboardController>()
+          ? Get.find<LibraryDashboardController>()
+          : Get.put(LibraryDashboardController(), permanent: true);
 
   @override
   Widget build(BuildContext context) {
-    final dashboardController = controller;
+    final c = controller;
 
-    return Obx(
-      () => ColoredBox(
-        color: LuminaColors.background,
-        child: Column(
-          children: [
-            LibraryHomeTopBar(
-              onCartTap: () {
-                Get.to(() => LibraryCartPage());
-              },
-              onNotificationTap: () {},
-            ),
+    return ColoredBox(
+      color: LuminaColors.background,
+      child: Column(
+        children: [
+          // ── Top bar ────────────────────────────────────────────────────
+          Obx(() => LibraryHomeTopBar(
+                userName: c.userName.value.isNotEmpty ? c.userName.value : 'Halo',
+                avatarUrl: c.userAvatarUrl.value ?? '',
+                onCartTap: () => Get.to(() => LibraryCartPage()),
+                onNotificationTap: () {},
+              )),
 
-            Expanded(
+          // ── Body ───────────────────────────────────────────────────────
+          Expanded(
+            child: RefreshIndicator(
+              color: LuminaColors.secondary,
+              backgroundColor: LuminaColors.surfaceContainerLowest,
+              onRefresh: c.refresh,
               child: ListView(
-                physics: const BouncingScrollPhysics(),
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
+                ),
                 padding: const EdgeInsets.only(
                   top: LuminaSpacing.lg,
-                  bottom: LuminaSpacing.md,
+                  bottom: LuminaSpacing.xl,
                 ),
                 children: [
-                  if (dashboardController.showReminder.value) ...[
-                    _PaddedSection(
+                  // ── Reminder ───────────────────────────────────────────
+                  Obx(() {
+                    if (!c.showReminder.value) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(
+                        left: LuminaSpacing.marginMobile,
+                        right: LuminaSpacing.marginMobile,
+                        bottom: LuminaSpacing.md,
+                      ),
                       child: LibraryReminderBanner(
-                        title: "Kembalikan buku 'Modern UX Design'",
+                        title: 'Kembalikan buku sebelum denda berlaku',
                         description: 'Tersisa 2 hari lagi sebelum denda berlaku.',
                         onExtend: () {},
-                        onDismiss: dashboardController.dismissReminder,
+                        onDismiss: c.dismissReminder,
                       ),
-                    ),
-                    const SizedBox(height: LuminaSpacing.md),
-                  ],
+                    );
+                  }),
 
+                  // ── Banner ─────────────────────────────────────────────
+                  Obx(() {
+                    if (c.bannersLoading.value) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: LuminaSpacing.marginMobile,
+                        ),
+                        child: LuminaBannerSkeleton(),
+                      );
+                    }
+                    if (c.banners.isEmpty) return const SizedBox.shrink();
+                    return _PaddedSection(
+                      child: LibraryFeaturedBanner(
+                        banners: c.banners
+                            .map((b) => b.toLibraryBannerData())
+                            .toList(),
+                      ),
+                    );
+                  }),
+
+                  const SizedBox(height: LuminaSpacing.xl),
+
+                  // ── Perpustakaan Terdekat ──────────────────────────────
                   const _PaddedSection(
-                    child: LibraryFeaturedBanner(
-                      banners: [
-                        LibraryBannerData(
-                          title: 'Featured Banner',
-                          subtitle: 'Area promosi utama perpustakaan digital.',
-                          icon: Icons.image_rounded,
-                        ),
-                        LibraryBannerData(
-                          title: 'Buku Baru',
-                          subtitle: 'Koleksi rilis terbaru bulan ini.',
-                          icon: Icons.menu_book_rounded,
-                        ),
-                        LibraryBannerData(
-                          title: 'Tips Membaca',
-                          subtitle: 'Tingkatkan fokus dengan teknik pomodoro.',
-                          icon: Icons.timer_rounded,
-                        ),
-                      ],
+                    child: LibrarySectionHeader(
+                      title: 'Perpustakaan Terdekat',
+                      showAction: false,
                     ),
                   ),
+                  const SizedBox(height: LuminaSpacing.md),
+
+                  Obx(() {
+                    if (c.branchesLoading.value) {
+                      return const LuminaBranchCardSkeletonList();
+                    }
+                    if (c.nearbyBranches.isEmpty) {
+                      return const _PaddedSection(
+                        child: _EmptySection(
+                          icon: Icons.location_off_rounded,
+                          label: 'Data perpustakaan belum tersedia.',
+                        ),
+                      );
+                    }
+                    return LibraryNearbyLibrarySlider(
+                      items: c.nearbyBranches
+                          .map((b) => b.toNearbyLibraryData())
+                          .toList(),
+                      onTap: (data) {
+                        final branch = c.nearbyBranches.firstWhere(
+                          (b) => b.id == data.id,
+                          orElse: () => c.nearbyBranches.first,
+                        );
+                        Get.to(() => LibraryNearbyLibraryDetailPage(
+                              library: branch.toNearbyLibraryData(),
+                            ));
+                      },
+                      onDirectionTap: (_) {},
+                    );
+                  }),
 
                   const SizedBox(height: LuminaSpacing.xl),
 
-                  LibraryNearbyLibrarySlider(
-                    items: dashboardController.nearbyLibraries,
-                    onTap: (library) {
-                      Get.to(
-                        () => LibraryNearbyLibraryDetailPage(library: library),
-                      );
-                    },
-                    onDirectionTap: (library) {
-                      debugPrint(
-                        'Open route to ${library.name}: ${library.latitude}, ${library.longitude}',
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: LuminaSpacing.xl),
-
+                  // ── Kategori ──────────────────────────────────────────
                   const _PaddedSection(
                     child: LibrarySectionHeader(
                       title: 'Kategori',
                       showAction: false,
                     ),
                   ),
-
                   const SizedBox(height: LuminaSpacing.md),
 
-                  const _FullBleedCategorySlider(),
+                  Obx(() {
+                    if (c.categoriesLoading.value) {
+                      return const LuminaCategoryItemSkeletonList();
+                    }
+                    if (c.categories.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return _CategorySlider(categories: c.categories);
+                  }),
 
                   const SizedBox(height: LuminaSpacing.xl),
 
+                  // ── Sedang Tren ────────────────────────────────────────
                   _PaddedSection(
                     child: LibrarySectionHeader(
                       title: 'Sedang Tren',
@@ -121,13 +168,66 @@ class LibraryDashboardPage extends StatelessWidget {
                       onActionTap: () {},
                     ),
                   ),
-
                   const SizedBox(height: LuminaSpacing.md),
 
-                  const _FullBleedTrendingBookSlider(),
+                  Obx(() {
+                    if (c.booksLoading.value) {
+                      return const LuminaBookCardSkeletonList();
+                    }
+                    if (c.trendingBooks.isEmpty) {
+                      return const _PaddedSection(
+                        child: _EmptySection(
+                          icon: Icons.menu_book_rounded,
+                          label: 'Belum ada buku trending.',
+                        ),
+                      );
+                    }
+                    return _TrendingBookSlider(books: c.trendingBooks);
+                  }),
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Category Slider ──────────────────────────────────────────────────────────
+
+
+class _CategorySlider extends StatelessWidget {
+  const _CategorySlider({required this.categories});
+  final List<CategoryModel> categories;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      // IntrinsicHeight → tinggi row otomatis ikut item tertinggi (label 2 baris)
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(width: LuminaSpacing.marginMobile),
+            ...categories.map(
+              (cat) => LibraryCategoryIconItem(
+                label: cat.name,
+                imageUrl: cat.icon?.imageUrl,
+                icon: cat.icon?.imageUrl == null ? Icons.category_rounded : null,
+                onTap: () => Get.to(
+                  () => LibraryCatalogPage(
+                    title: cat.name,
+                    initialCategoryKey: cat.slug,
+                    hideCart: true,
+                    showBackButton: true,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: LuminaSpacing.marginMobile),
           ],
         ),
       ),
@@ -135,11 +235,50 @@ class LibraryDashboardPage extends StatelessWidget {
   }
 }
 
-class _PaddedSection extends StatelessWidget {
-  const _PaddedSection({
-    required this.child,
-  });
+// ─── Trending Book Slider ─────────────────────────────────────────────────────
 
+class _TrendingBookSlider extends StatelessWidget {
+  const _TrendingBookSlider({required this.books});
+  final List<BookModel> books;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(width: LuminaSpacing.marginMobile),
+          ...books.asMap().entries.map((entry) {
+            final book = entry.value;
+            final isLast = entry.key == books.length - 1;
+            return Padding(
+              padding: EdgeInsets.only(
+                right: isLast ? LuminaSpacing.marginMobile : LuminaSpacing.md,
+              ),
+              child: LibraryTrendingBookCard(
+                title: book.title,
+                author: book.author,
+                rating: book.ratingLabel,
+                imageUrl: book.coverUrl ?? '',
+                isAvailable: book.isAvailable,
+                libraryLocation: book.locationLabel,
+                onTap: () => Get.to(() => LibraryBookDetailPage()),
+                onBorrowTap: () => Get.to(() => LibraryBookDetailPage()),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Layout helpers ───────────────────────────────────────────────────────────
+
+class _PaddedSection extends StatelessWidget {
+  const _PaddedSection({required this.child});
   final Widget child;
 
   @override
@@ -153,196 +292,26 @@ class _PaddedSection extends StatelessWidget {
   }
 }
 
-
-class _FullBleedCategorySlider extends StatelessWidget {
-  const _FullBleedCategorySlider();
-
-  void _openCatalogByCategory({
-    required String title,
-    required String categoryKey,
-  }) {
-    Get.to(
-      () =>  LibraryCatalogPage(
-        title: title,
-        initialCategoryKey: categoryKey,
-        hideCart: true,
-        showBackButton: true,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 88,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: EdgeInsets.zero,
-        children: [
-          const SizedBox(width: LuminaSpacing.marginMobile),
-
-          _CategoryCatalogItem(
-            icon: Icons.import_contacts_rounded,
-            label: 'Novel',
-            onTap: () => _openCatalogByCategory(
-              title: 'Novel',
-              categoryKey: 'novel',
-            ),
-          ),
-          _CategoryCatalogItem(
-            icon: Icons.memory_rounded,
-            label: 'Teknologi',
-            onTap: () => _openCatalogByCategory(
-              title: 'Teknologi',
-              categoryKey: 'technology',
-            ),
-          ),
-          _CategoryCatalogItem(
-            icon: Icons.school_rounded,
-            label: 'Pendidikan',
-            onTap: () => _openCatalogByCategory(
-              title: 'Pendidikan',
-              categoryKey: 'education',
-            ),
-          ),
-          _CategoryCatalogItem(
-            icon: Icons.science_rounded,
-            label: 'Sains',
-            onTap: () => _openCatalogByCategory(
-              title: 'Sains',
-              categoryKey: 'science',
-            ),
-          ),
-          _CategoryCatalogItem(
-            icon: Icons.history_rounded,
-            label: 'Sejarah',
-            onTap: () => _openCatalogByCategory(
-              title: 'Sejarah',
-              categoryKey: 'history',
-            ),
-          ),
-          _CategoryCatalogItem(
-            icon: Icons.business_center_rounded,
-            label: 'Bisnis',
-            onTap: () => _openCatalogByCategory(
-              title: 'Bisnis',
-              categoryKey: 'business',
-            ),
-          ),
-
-          const SizedBox(width: LuminaSpacing.marginMobile),
-        ],
-      ),
-    );
-  }
-}
-
-class _CategoryCatalogItem extends StatelessWidget {
-  const _CategoryCatalogItem({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
+class _EmptySection extends StatelessWidget {
+  const _EmptySection({required this.icon, required this.label});
   final IconData icon;
   final String label;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: LibraryCategoryIconItem(
-        icon: icon,
-        label: label,
-      ),
-    );
-  }
-}
-
-class _FullBleedTrendingBookSlider extends StatelessWidget {
-  const _FullBleedTrendingBookSlider();
-
-  @override
-  Widget build(BuildContext context) {
-    // Menggunakan SingleChildScrollView + Row agar tinggi otomatis (auto)
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      // Gunakan padding di sini jika ingin memberikan jarak keseluruhan, 
-      // atau biarkan di dalam Row seperti sebelumnya.
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
       child: Row(
-        // crossAxisAlignment.start agar item rata atas jika tingginya berbeda-beda
-        crossAxisAlignment: CrossAxisAlignment.start, 
-        children:  [
-          SizedBox(width: LuminaSpacing.marginMobile),
-
-          LibraryTrendingBookCard(
-            title: 'Clean Architecture',
-            author: 'Robert C. Martin',
-            rating: '4.8',
-            imageUrl:
-                'https://lh3.googleusercontent.com/aida-public/AB6AXuAuLblMAj5-Sc853TMVBkmebmIs-PlqkXA2dmSvr6np_PuAApRlgf0J9jxiwcJG-BsSUs9oKsn9ksyb3dfmzQtUydS6lc_1Emw_aOukz22O2jzIOC5ET0JGAZPFPxzTDSKEO6OxtFcm8Y1QzTh_5wPP2qQnP16DxscNnWv0X2BEi3lbQy24UysKZ_Nlcp3o9laV40glwhEHh3O_B_WOOlWdZaJyeJ0CcHF3IAk6jCbHn4pSCtzT110s7C5aIff8AVMeosutYK3qGFaj',
-            isAvailable: true,
-            onTap: () => {
-              Get.to(
-                () => LibraryBookDetailPage(),
-              )
-            },
-            onBorrowTap: () => {
-              Get.to(
-                () => LibraryBookDetailPage(),
-              )
-            },
-
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: LuminaColors.outline, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: LuminaTextStyles.bodyMd.copyWith(
+              color: LuminaColors.outline,
+            ),
           ),
-
-          SizedBox(width: LuminaSpacing.md),
-
-          LibraryTrendingBookCard(
-            title: 'Design of Everyday Things',
-            author: 'Don Norman',
-            rating: '4.6',
-            imageUrl:
-                'https://lh3.googleusercontent.com/aida-public/AB6AXuAzpmqkX7zqHxIffZ3d25pq1X0JZ36S4TdlP5S_lziXjjh2fnLIBwyAtQgksQ_Nwm-Hfa8PcMVjqFuezchn1dMKEXAzbWz0TVhFj08xJ02GyhWZHLO9HRed1fqWekOtGU82Z0xC6Tr6YKrUiyJ3AGUYHUyr_j0zzjlevLyx3quxeacgbENLWHPvVLMZbuP31umrxALb9UNCd3NNlBdPr4Kd8YLauEHyyO0UEkY6YstIZXHoPsGzbF_ILS2AOoJfRyn-IOncMLCHvV7K',
-            isAvailable: true,
-            onTap: () => {
-              Get.to(
-                () => LibraryBookDetailPage(),
-              )
-            },
-            onBorrowTap: () => {
-              Get.to(
-                () => LibraryBookDetailPage(),
-              )
-            },
-
-          ),
-
-          SizedBox(width: LuminaSpacing.md),
-
-          LibraryTrendingBookCard(
-            title: 'Sapiens',
-            author: 'Yuval Noah Harari',
-            rating: '4.9',
-            imageUrl:
-                'https://lh3.googleusercontent.com/aida-public/AB6AXuAOGdF3QY5G89jhgdZoszYTVtgwR3oxR_MjOcbuc9zoWw-ykYzpq2GdDFwhRsEmV6I6fcwVxAKt3mlKBT8EzWVNGGm3Oa33rYDpFZstTXu_npFRx8Nu7h8b_mqoxj66VbH6Jf8JfD6LCfAdFF0nR8LonDJqbUPoGhwdZhDjlXMbFuZqCvC6KZy6AtDhrCu-vgkdYnqpqsXXy4gAgNc54k6dPS7OsMAZuIdjGaslY26YvCIMaaWv4nK6tkq3NoRi6meFwbrhSHY_t2w8',
-            isAvailable: false,
-            onTap: () => {
-              Get.to(
-                () => LibraryBookDetailPage(),
-              )
-            },
-            onBorrowTap: () => {
-              Get.to(
-                () => LibraryBookDetailPage(),
-              )
-            },
-          ),
-
-          SizedBox(width: LuminaSpacing.marginMobile),
         ],
       ),
     );

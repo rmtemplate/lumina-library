@@ -11,14 +11,44 @@ import 'package:lumina_library/features/mahasiswa/presentation/widgets/layout/li
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/layout/library_stat_card.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/my_books/library_my_book_card.dart';
 import 'package:lumina_library/shared/models/book/library_my_book_item_model.dart';
+import 'package:lumina_library/shared/widgets/skeleton/lumina_skeleton.dart';
 
-class LibraryMyBooksPage extends StatelessWidget {
+class LibraryMyBooksPage extends StatefulWidget {
   const LibraryMyBooksPage({super.key});
+
+  @override
+  State<LibraryMyBooksPage> createState() => _LibraryMyBooksPageState();
+}
+
+class _LibraryMyBooksPageState extends State<LibraryMyBooksPage> {
+  late final ScrollController _scrollController;
 
   LibraryMyBooksController get controller =>
       Get.isRegistered<LibraryMyBooksController>()
           ? Get.find<LibraryMyBooksController>()
-          : Get.put(LibraryMyBooksController(), permanent: true);
+          : Get.put(LibraryMyBooksController());
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Trigger load more ketika user scroll ≥80% dari total konten.
+  void _onScroll() {
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent * 0.8) {
+      controller.loadMore();
+    }
+  }
 
   void _goToDetail(LibraryMyBookItemModel book) {
     Get.to(
@@ -29,80 +59,167 @@ class LibraryMyBooksPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final myBooksController = controller;
+    final c = controller;
 
-    return Obx(() {
-      final books = myBooksController.filteredBooks;
-      final reminderBook = myBooksController.priorityReminderBook;
+    return ColoredBox(
+      color: LuminaColors.background,
+      child: Column(
+        children: [
+          const LibraryAppTopBar(
+            title: 'My Books',
+            subtitle: 'Track your active book loans',
+            avatarUrl:
+                'https://lh3.googleusercontent.com/aida-public/AB6AXuCOUvcuhrVPW6TDnxzNftePyL0xi1fH6OHV95Beg7esW1M8wRZHjjluoHNyTYsyVEx3LlwkFgVb2suvjzCHdemAv58quy6z7cc8uMRhTRevRE0rbj51KvFcN4ZZd6xWa6Odx4WumnhYO5FLvVYdMGKtO1ykNBXlGxV2SbT-j2Nyx2hVUPL-oJby1mBJ-CHLEdb1cX2ggVN9SzR2BOY9CbuOGWrA3pS8SbSbQwjNBXDXFtHRwypfMetx7orjLK5lNqtleuJlOU45Ggqa',
+            showNotificationDot: true,
+          ),
 
-      return ColoredBox(
-        color: LuminaColors.background,
-        child: Column(
-          children: [
-            const LibraryAppTopBar(
-              title: 'My Books',
-              subtitle: 'Track your active book loans',
-              avatarUrl:
-                  'https://lh3.googleusercontent.com/aida-public/AB6AXuCOUvcuhrVPW6TDnxzNftePyL0xi1fH6OHV95Beg7esW1M8wRZHjjluoHNyTYsyVEx3LlwkFgVb2suvjzCHdemAv58quy6z7cc8uMRhTRevRE0rbj51KvFcN4ZZd6xWa6Odx4WumnhYO5FLvVYdMGKtO1ykNBXlGxV2SbT-j2Nyx2hVUPL-oJby1mBJ-CHLEdb1cX2ggVN9SzR2BOY9CbuOGWrA3pS8SbSbQwjNBXDXFtHRwypfMetx7orjLK5lNqtleuJlOU45Ggqa',
-              showNotificationDot: true,
-            ),
-            Expanded(
-              child: ListView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(
-                  LuminaSpacing.marginMobile,
-                  LuminaSpacing.lg,
-                  LuminaSpacing.marginMobile,
-                  LuminaSpacing.lg,
-                ),
-                children: [
-                  _MyBooksStats(
-                    activeCount: myBooksController.activeCount,
-                    dueSoonCount: myBooksController.dueSoonCount,
-                    overdueCount: myBooksController.overdueCount,
-                  ),
-                  if (reminderBook != null) ...[
-                    const SizedBox(height: LuminaSpacing.lg),
-                    _MyBooksReminderCard(
-                      book: reminderBook,
-                      onTap: () => _goToDetail(reminderBook),
+          Expanded(
+            child: Obx(() {
+              // ── Initial loading — tampilkan skeleton penuh ─────────────
+              if (c.isInitialLoading.value) {
+                return const _MyBooksSkeleton();
+              }
+
+              // ── Refresh + data ─────────────────────────────────────────
+              return RefreshIndicator(
+                color: LuminaColors.secondary,
+                backgroundColor: LuminaColors.surfaceContainerLowest,
+                onRefresh: c.refresh,
+                child: Obx(() {
+                  final books = c.filteredBooks;
+                  final reminderBook = c.priorityReminderBook;
+
+                  return ListView(
+                    controller: _scrollController,
+                    physics: const AlwaysScrollableScrollPhysics(
+                      parent: BouncingScrollPhysics(),
                     ),
-                  ],
-                  const SizedBox(height: LuminaSpacing.lg),
-                  _MyBooksFilterBar(
-                    filters: myBooksController.filters,
-                    selectedIndex: myBooksController.selectedFilterIndex.value,
-                    onChanged: myBooksController.setFilterIndex,
-                  ),
-                  const SizedBox(height: LuminaSpacing.md),
-                  if (books.isEmpty)
-                    const _MyBooksEmptyState()
-                  else
-                    ...List.generate(books.length, (index) {
-                      final book = books[index];
+                    padding: const EdgeInsets.fromLTRB(
+                      LuminaSpacing.marginMobile,
+                      LuminaSpacing.lg,
+                      LuminaSpacing.marginMobile,
+                      LuminaSpacing.lg,
+                    ),
+                    children: [
+                      // Stats
+                      _MyBooksStats(
+                        activeCount: c.activeCount,
+                        dueSoonCount: c.dueSoonCount,
+                        overdueCount: c.overdueCount,
+                      ),
 
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          bottom: index == books.length - 1
-                              ? 0
-                              : LuminaSpacing.md,
+                      // Reminder card
+                      if (reminderBook != null) ...[
+                        const SizedBox(height: LuminaSpacing.lg),
+                        _MyBooksReminderCard(
+                          book: reminderBook,
+                          onTap: () => _goToDetail(reminderBook),
                         ),
-                        child: LibraryMyBookCard(
-                          book: book,
-                          onTap: () => _goToDetail(book),
-                          onDetailTap: () => _goToDetail(book),
-                        ),
-                      );
-                    }),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    });
+                      ],
+
+                      const SizedBox(height: LuminaSpacing.lg),
+
+                      // Filter bar
+                      _MyBooksFilterBar(
+                        filters: c.filters,
+                        selectedIndex: c.selectedFilterIndex.value,
+                        onChanged: c.setFilterIndex,
+                      ),
+
+                      const SizedBox(height: LuminaSpacing.md),
+
+                      // Book list
+                      if (books.isEmpty && !c.isLoadingMore.value)
+                        const _MyBooksEmptyState()
+                      else
+                        ...books.asMap().entries.map((e) {
+                          final index = e.key;
+                          final book = e.value;
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              bottom: index == books.length - 1 &&
+                                      !c.isLoadingMore.value &&
+                                      !c.hasMore.value
+                                  ? 0
+                                  : LuminaSpacing.md,
+                            ),
+                            child: LibraryMyBookCard(
+                              book: book,
+                              onTap: () => _goToDetail(book),
+                              onDetailTap: () => _goToDetail(book),
+                            ),
+                          );
+                        }),
+
+                      // Load more skeleton
+                      if (c.isLoadingMore.value) ...[
+                        const SizedBox(height: LuminaSpacing.md),
+                        const LuminaMyBookCardSkeleton(),
+                      ],
+
+                      // End of list indicator
+                      if (!c.hasMore.value && books.isNotEmpty)
+                        const _EndOfListLabel(),
+                    ],
+                  );
+                }),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
   }
 }
+
+// ─── Full skeleton on initial load ───────────────────────────────────────────
+
+class _MyBooksSkeleton extends StatelessWidget {
+  const _MyBooksSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.lg,
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.lg,
+      ),
+      children: [
+        // Stats row skeleton
+        Row(
+          children: List.generate(3, (i) => Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(right: i < 2 ? LuminaSpacing.md : 0),
+              child: const LuminaSkeleton(height: 76, radius: LuminaRadius.xl),
+            ),
+          )),
+        ),
+        const SizedBox(height: LuminaSpacing.lg),
+
+        // Filter bar skeleton
+        Row(
+          children: List.generate(5, (i) => Padding(
+            padding: EdgeInsets.only(right: i < 4 ? LuminaSpacing.sm : 0),
+            child: const LuminaSkeleton(
+              width: 64,
+              height: 36,
+              radius: LuminaRadius.full,
+            ),
+          )),
+        ),
+        const SizedBox(height: LuminaSpacing.md),
+
+        // Book card skeletons
+        const LuminaMyBookCardSkeletonList(count: 3),
+      ],
+    );
+  }
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
 
 class _MyBooksStats extends StatelessWidget {
   const _MyBooksStats({
@@ -153,11 +270,10 @@ class _MyBooksStats extends StatelessWidget {
   }
 }
 
+// ─── Reminder card ────────────────────────────────────────────────────────────
+
 class _MyBooksReminderCard extends StatelessWidget {
-  const _MyBooksReminderCard({
-    required this.book,
-    this.onTap,
-  });
+  const _MyBooksReminderCard({required this.book, this.onTap});
 
   final LibraryMyBookItemModel book;
   final VoidCallback? onTap;
@@ -173,16 +289,6 @@ class _MyBooksReminderCard extends StatelessWidget {
             ? LuminaColors.errorContainer
             : LuminaColors.tertiaryContainer,
         borderRadius: BorderRadius.circular(LuminaRadius.xl),
-        boxShadow: [
-          BoxShadow(
-            color: (isOverdue
-                    ? LuminaColors.errorContainer
-                    : LuminaColors.tertiaryContainer)
-                .withOpacity(0.18),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -190,10 +296,8 @@ class _MyBooksReminderCard extends StatelessWidget {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: (isOverdue
-                      ? LuminaColors.error
-                      : LuminaColors.onTertiary)
-                  .withOpacity(0.12),
+              color: (isOverdue ? LuminaColors.error : LuminaColors.onTertiary)
+                  .withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -241,9 +345,8 @@ class _MyBooksReminderCard extends StatelessWidget {
           TextButton(
             onPressed: onTap,
             style: TextButton.styleFrom(
-              backgroundColor: isOverdue
-                  ? LuminaColors.error
-                  : LuminaColors.onTertiary,
+              backgroundColor:
+                  isOverdue ? LuminaColors.error : LuminaColors.onTertiary,
               foregroundColor: isOverdue
                   ? LuminaColors.onError
                   : LuminaColors.tertiaryContainer,
@@ -272,6 +375,8 @@ class _MyBooksReminderCard extends StatelessWidget {
   }
 }
 
+// ─── Filter bar ───────────────────────────────────────────────────────────────
+
 class _MyBooksFilterBar extends StatelessWidget {
   const _MyBooksFilterBar({
     required this.filters,
@@ -294,7 +399,6 @@ class _MyBooksFilterBar extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: LuminaSpacing.sm),
         itemBuilder: (context, index) {
           final isSelected = selectedIndex == index;
-
           return InkWell(
             onTap: () => onChanged(index),
             borderRadius: BorderRadius.circular(LuminaRadius.full),
@@ -313,7 +417,6 @@ class _MyBooksFilterBar extends StatelessWidget {
                   color: isSelected
                       ? LuminaColors.primary
                       : LuminaColors.outlineVariant,
-                  width: 1,
                 ),
               ),
               child: Center(
@@ -336,6 +439,8 @@ class _MyBooksFilterBar extends StatelessWidget {
   }
 }
 
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
 class _MyBooksEmptyState extends StatelessWidget {
   const _MyBooksEmptyState();
 
@@ -346,10 +451,7 @@ class _MyBooksEmptyState extends StatelessWidget {
       decoration: BoxDecoration(
         color: LuminaColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(LuminaRadius.xl),
-        border: Border.all(
-          color: LuminaColors.surfaceVariant,
-          width: 1,
-        ),
+        border: Border.all(color: LuminaColors.surfaceVariant),
       ),
       child: Column(
         children: [
@@ -357,7 +459,7 @@ class _MyBooksEmptyState extends StatelessWidget {
             width: 68,
             height: 68,
             decoration: BoxDecoration(
-              color: LuminaColors.primary.withOpacity(0.08),
+              color: LuminaColors.primary.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -383,6 +485,28 @@ class _MyBooksEmptyState extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── End of list ──────────────────────────────────────────────────────────────
+
+class _EndOfListLabel extends StatelessWidget {
+  const _EndOfListLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: LuminaSpacing.md),
+      child: Center(
+        child: Text(
+          '— Semua data sudah ditampilkan —',
+          style: LuminaTextStyles.labelMd.copyWith(
+            color: LuminaColors.outline,
+            letterSpacing: 0,
+          ),
+        ),
       ),
     );
   }
