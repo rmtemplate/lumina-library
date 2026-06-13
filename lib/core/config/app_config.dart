@@ -9,7 +9,8 @@ class AppConfig {
   /// Base URL backend Laravel.
   /// Android emulator  → http://10.0.2.2
   /// Laragon (host OS) → http://lumina-library.test
-  static const String baseUrl = 'http://172.20.10.2:8000';
+  // static const String baseUrl = 'http://172.20.10.2:8000';
+  static const String baseUrl = 'http://lumina-library.test:82'; // laragon
 
   static const String apiPrefix = '/api/v1';
   static const Duration requestTimeout = Duration(seconds: 20);

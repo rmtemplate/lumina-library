@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 
@@ -381,6 +382,170 @@ class LuminaMyBookCardSkeletonList extends StatelessWidget {
         ),
         child: const LuminaMyBookCardSkeleton(),
       )),
+    );
+  }
+}
+
+/// Skeleton untuk halaman Cart — satu item keranjang per baris.
+class LuminaCartItemSkeleton extends StatelessWidget {
+  const LuminaCartItemSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(LuminaSpacing.md),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const LuminaSkeleton(
+            width: 48,
+            height: 64,
+            radius: LuminaRadius.md,
+          ),
+          const SizedBox(width: LuminaSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                LuminaSkeleton(width: double.infinity, height: 14, radius: LuminaRadius.sm),
+                SizedBox(height: 6),
+                LuminaSkeleton(width: 140, height: 12, radius: LuminaRadius.sm),
+                SizedBox(height: 6),
+                LuminaSkeleton(width: 100, height: 11, radius: LuminaRadius.sm),
+              ],
+            ),
+          ),
+          const SizedBox(width: LuminaSpacing.sm),
+          const LuminaSkeleton(width: 28, height: 28, radius: LuminaRadius.sm),
+        ],
+      ),
+    );
+  }
+}
+
+/// Skeleton lengkap untuk halaman Cart (header grup + beberapa item).
+class LuminaCartSkeleton extends StatelessWidget {
+  const LuminaCartSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.md,
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.lg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Group card 1
+          _CartGroupSkeleton(itemCount: 2),
+          const SizedBox(height: LuminaSpacing.lg),
+          // Group card 2
+          _CartGroupSkeleton(itemCount: 1),
+        ],
+      ),
+    );
+  }
+}
+
+class _CartGroupSkeleton extends StatelessWidget {
+  const _CartGroupSkeleton({required this.itemCount});
+  final int itemCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: LuminaColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+        border: Border.all(color: LuminaColors.surfaceVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(LuminaSpacing.sm),
+            color: LuminaColors.surfaceContainerLow,
+            child: Row(
+              children: const [
+                LuminaSkeleton(width: 24, height: 24, radius: LuminaRadius.sm),
+                SizedBox(width: LuminaSpacing.sm),
+                LuminaSkeleton(width: 38, height: 38, radius: LuminaRadius.md),
+                SizedBox(width: LuminaSpacing.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      LuminaSkeleton(width: double.infinity, height: 14, radius: LuminaRadius.sm),
+                      SizedBox(height: 5),
+                      LuminaSkeleton(width: 100, height: 11, radius: LuminaRadius.sm),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Items
+          for (int i = 0; i < itemCount; i++) ...[
+            if (i > 0) const Divider(height: 1, color: LuminaColors.surfaceVariant),
+            const LuminaCartItemSkeleton(),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Skeleton grid untuk halaman Catalog — 2 kolom, mirip layout buku aslinya.
+class LuminaCatalogBookGridSkeleton extends StatelessWidget {
+  const LuminaCatalogBookGridSkeleton({super.key, this.count = 6});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth >= 680 ? 3 : 2;
+        const spacing = LuminaSpacing.md;
+        final cardWidth =
+            (constraints.maxWidth - ((crossAxisCount - 1) * spacing)) /
+                crossAxisCount;
+        final imageHeight = cardWidth / (2 / 3);
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing + 8,
+          children: List.generate(count, (_) {
+            return SizedBox(
+              width: cardWidth,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LuminaSkeleton(height: imageHeight, radius: LuminaRadius.xl),
+                  const SizedBox(height: LuminaSpacing.xs),
+                  LuminaSkeleton(height: 14, radius: LuminaRadius.sm),
+                  const SizedBox(height: 5),
+                  LuminaSkeleton(
+                    width: cardWidth * 0.65,
+                    height: 12,
+                    radius: LuminaRadius.sm,
+                  ),
+                  const SizedBox(height: LuminaSpacing.xs),
+                  LuminaSkeleton(
+                    width: cardWidth * 0.45,
+                    height: 11,
+                    radius: LuminaRadius.sm,
+                  ),
+                ],
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:lumina_library/features/staff/presentation/pages/rack/rack_list_page.dart';
 
 import '../../../../../core/theme/lumina_colors.dart';
+import '../../../../../shared/widgets/feedback/lumina_toast.dart';
 import '../../models/staff_dashboard_model.dart';
 
 class LibraryStaffDashboardController extends GetxController {
@@ -87,40 +88,20 @@ class LibraryStaffDashboardController extends GetxController {
   ];
 
   void handleNotificationTap() {
-    Get.snackbar(
-      'Notifikasi',
-      'Belum ada halaman notifikasi.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 2),
-    );
+    LuminaToast.info('Halaman notifikasi staff belum tersedia.');
   }
 
   void handleQuickActionTap(StaffDashboardActionModel item) {
-    switch(item.label) {
+    switch (item.label) {
       case 'Atur Rak':
-        Get.to(
-          () => const RackListPage()
-        );
+        Get.to(() => const RackListPage());
         return;
       default:
-        Get.snackbar(
-          'Aksi Cepat',
-          'Fitur untuk "${item.label}" belum tersedia.',
-          snackPosition: SnackPosition.BOTTOM,
-          margin: const EdgeInsets.all(16),
-          duration: const Duration(seconds: 2),
-        );
+        LuminaToast.info('Fitur "${item.label}" belum tersedia.');
     }
   }
 
   void handleSeeAllActivityTap() {
-    Get.snackbar(
-      'Recent Activity',
-      'Halaman aktivitas lengkap belum tersedia.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 2),
-    );
+    LuminaToast.info('Halaman aktivitas lengkap belum tersedia.');
   }
 }

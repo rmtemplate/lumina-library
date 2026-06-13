@@ -151,67 +151,104 @@ class LibraryMyBookCard extends StatelessWidget {
 
   String _statusLabel(LibraryMyBookStatus status) {
     switch (status) {
+      case LibraryMyBookStatus.pending:
+        return 'Menunggu';
+      case LibraryMyBookStatus.awaitingPickup:
+        return 'Siap Diambil';
       case LibraryMyBookStatus.active:
-        return 'Active';
+        return 'Aktif';
       case LibraryMyBookStatus.dueSoon:
-        return 'Due Soon';
+        return 'Segera Kembali';
       case LibraryMyBookStatus.overdue:
-        return 'Overdue';
+        return 'Terlambat';
       case LibraryMyBookStatus.finished:
-        return 'Returned';
+        return 'Selesai';
+      case LibraryMyBookStatus.waitingPayment:
+        return 'Tunggu Pembayaran';
+      case LibraryMyBookStatus.expired:
+        return 'Kadaluwarsa';
+      case LibraryMyBookStatus.cancelled:
+        return 'Dibatalkan';
     }
   }
 
   String _dueText(LibraryMyBookItemModel book) {
     switch (book.status) {
+      case LibraryMyBookStatus.pending:
+        return 'Menunggu konfirmasi perpustakaan';
+      case LibraryMyBookStatus.awaitingPickup:
+        return 'Buku siap diambil di perpustakaan';
       case LibraryMyBookStatus.active:
-        return 'Due in ${book.remainingDays} days';
       case LibraryMyBookStatus.dueSoon:
-        return 'Due in ${book.remainingDays} days';
+        return 'Jatuh tempo dalam ${book.remainingDays} hari';
       case LibraryMyBookStatus.overdue:
-        return '${book.overdueDays} days overdue';
+        return '${book.overdueDays} hari terlambat';
       case LibraryMyBookStatus.finished:
         final returnedDate = book.returnedDateText;
-
         if (returnedDate == null || returnedDate.trim().isEmpty) {
-          return 'Returned';
+          return 'Sudah dikembalikan';
         }
-
-        return 'Returned on $returnedDate';
+        return 'Dikembalikan: $returnedDate';
+      case LibraryMyBookStatus.waitingPayment:
+        return 'Menunggu pembayaran denda';
+      case LibraryMyBookStatus.expired:
+        return 'Reservasi kadaluwarsa';
+      case LibraryMyBookStatus.cancelled:
+        return 'Peminjaman dibatalkan';
     }
   }
 
   double _loanProgress(LibraryMyBookItemModel book) {
     switch (book.status) {
+      case LibraryMyBookStatus.pending:
+        return 0.05;
+      case LibraryMyBookStatus.awaitingPickup:
+        return 0.15;
       case LibraryMyBookStatus.active:
       case LibraryMyBookStatus.dueSoon:
         const maxLoanDays = 14;
         final remainingDays = book.remainingDays.clamp(0, maxLoanDays);
         final elapsedDays = maxLoanDays - remainingDays;
         final progress = elapsedDays / maxLoanDays;
-
         return progress.clamp(0.08, 0.92);
       case LibraryMyBookStatus.overdue:
       case LibraryMyBookStatus.finished:
+      case LibraryMyBookStatus.waitingPayment:
+      case LibraryMyBookStatus.expired:
+      case LibraryMyBookStatus.cancelled:
         return 1;
     }
   }
 
   String _progressLabel(LibraryMyBookItemModel book, double progress) {
     switch (book.status) {
+      case LibraryMyBookStatus.pending:
+        return 'Menunggu konfirmasi';
+      case LibraryMyBookStatus.awaitingPickup:
+        return 'Segera ambil buku di perpustakaan';
       case LibraryMyBookStatus.active:
-        return '${(progress * 100).round()}% of loan period used';
+        return '${(progress * 100).round()}% masa pinjam terpakai';
       case LibraryMyBookStatus.dueSoon:
-        return '${(progress * 100).round()}% used • return soon';
+        return '${(progress * 100).round()}% terpakai • segera kembalikan';
       case LibraryMyBookStatus.overdue:
-        return 'Loan period exceeded';
+        return 'Masa pinjam terlewati';
       case LibraryMyBookStatus.finished:
-        return 'Loan completed';
+        return 'Peminjaman selesai';
+      case LibraryMyBookStatus.waitingPayment:
+        return 'Menunggu pembayaran denda';
+      case LibraryMyBookStatus.expired:
+        return 'Reservasi kadaluwarsa';
+      case LibraryMyBookStatus.cancelled:
+        return 'Peminjaman dibatalkan';
     }
   }
 
   Color _statusColor(LibraryMyBookStatus status) {
     switch (status) {
+      case LibraryMyBookStatus.pending:
+        return const Color(0xFF6B5B00); // amber dark
+      case LibraryMyBookStatus.awaitingPickup:
+        return LuminaColors.secondary;
       case LibraryMyBookStatus.active:
         return LuminaColors.secondary;
       case LibraryMyBookStatus.dueSoon:
@@ -220,11 +257,20 @@ class LibraryMyBookCard extends StatelessWidget {
         return LuminaColors.error;
       case LibraryMyBookStatus.finished:
         return LuminaColors.onSurfaceVariant;
+      case LibraryMyBookStatus.waitingPayment:
+        return LuminaColors.error;
+      case LibraryMyBookStatus.expired:
+      case LibraryMyBookStatus.cancelled:
+        return LuminaColors.onSurfaceVariant;
     }
   }
 
   Color _statusBackgroundColor(LibraryMyBookStatus status) {
     switch (status) {
+      case LibraryMyBookStatus.pending:
+        return const Color(0xFFFFF8E1); // amber 50
+      case LibraryMyBookStatus.awaitingPickup:
+        return LuminaColors.secondary.withOpacity(0.12);
       case LibraryMyBookStatus.active:
         return LuminaColors.secondary.withOpacity(0.12);
       case LibraryMyBookStatus.dueSoon:
@@ -232,6 +278,11 @@ class LibraryMyBookCard extends StatelessWidget {
       case LibraryMyBookStatus.overdue:
         return LuminaColors.errorContainer.withOpacity(0.58);
       case LibraryMyBookStatus.finished:
+        return LuminaColors.surfaceContainerHighest;
+      case LibraryMyBookStatus.waitingPayment:
+        return LuminaColors.errorContainer.withOpacity(0.40);
+      case LibraryMyBookStatus.expired:
+      case LibraryMyBookStatus.cancelled:
         return LuminaColors.surfaceContainerHighest;
     }
   }

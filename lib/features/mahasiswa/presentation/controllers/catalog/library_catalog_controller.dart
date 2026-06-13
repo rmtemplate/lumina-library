@@ -1,7 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
-import 'package:lumina_library/shared/models/book/catalog_book_model.dart';
+import 'package:lumina_library/core/network/lumina_api_exception.dart';
+import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
+import 'package:lumina_library/shared/models/book/book_model.dart';
+import 'package:lumina_library/shared/models/category/category_model.dart';
+import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
 
 class CatalogFilterOption<T> {
   const CatalogFilterOption({
@@ -25,7 +28,15 @@ class LibraryCatalogController extends GetxController {
   final RxString selectedSortKey = defaultSortKey.obs;
   final RxnInt selectedPublishedYear = RxnInt();
 
-  final RxSet<int> favoriteIndexes = <int>{2}.obs;
+  final RxBool isLoading = false.obs;
+  final RxBool isCategoriesLoading = false.obs;
+  final RxString errorMessage = ''.obs;
+
+  final RxList<BookModel> books = <BookModel>[].obs;
+  final RxList<CategoryModel> apiCategories = <CategoryModel>[].obs;
+  final RxSet<String> favoriteBookIds = <String>{}.obs;
+
+  // ── Static filter options ──────────────────────────────────────────────────
 
   final List<CatalogFilterOption<String>> distanceOptions = const [
     CatalogFilterOption(label: 'Semua jarak', value: 'all'),
@@ -33,15 +44,6 @@ class LibraryCatalogController extends GetxController {
     CatalogFilterOption(label: '1 - 3 km', value: '1_3'),
     CatalogFilterOption(label: '3 - 5 km', value: '3_5'),
     CatalogFilterOption(label: '> 5 km', value: 'above_5'),
-  ];
-
-  final List<CatalogFilterOption<String>> categoryOptions = const [
-    CatalogFilterOption(label: 'Semua kategori', value: 'all'),
-    CatalogFilterOption(label: 'Design', value: 'design'),
-    CatalogFilterOption(label: 'Technology', value: 'technology'),
-    CatalogFilterOption(label: 'Novel', value: 'novel'),
-    CatalogFilterOption(label: 'History', value: 'history'),
-    CatalogFilterOption(label: 'Psychology', value: 'psychology'),
   ];
 
   final List<CatalogFilterOption<String>> availabilityOptions = const [
@@ -65,62 +67,99 @@ class LibraryCatalogController extends GetxController {
     CatalogFilterOption(label: 'Terbaru', value: 'newest'),
   ];
 
-  final List<CatalogBookModel> books = const [
-    CatalogBookModel(
-      title: 'The Design of Everyday Things',
-      author: 'Don Norman',
-      rating: '4.8',
-      isAvailable: true,
-      category: 'design',
-      libraryName: 'Lumina Central Library',
-      libraryDistanceKm: 0.8,
-      publishedYear: 2023,
-      borrowCount: 128,
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuDFtPY08koMch_TVNgxI6NG7PM-FzVmki-eENqsbHPdiuTqJu53S19Rzzuewotosw7fpA0BOHSo8u7rp6esH0z9z5YDAxVCXI_bzCry3t2jfErzsR1AiXaPQXuNq7LbPqn66Y4Etk5eNNFqTyLivYkxyOLMgrY-vZHr9t0bgMIxjpV4YYwLIEArvxee0cMXce9RbIcVXWbU2212IwPLDheL0tnZ9PaKoLvCmeYiUVIvp8QyzcMe0klsbfG_WcUMaUflq3inhdk7qVmg',
-    ),
-    CatalogBookModel(
-      title: 'Clean Code',
-      author: 'Robert C. Martin',
-      rating: '4.9',
-      isAvailable: false,
-      category: 'technology',
-      libraryName: 'Engineering Library',
-      libraryDistanceKm: 2.4,
-      publishedYear: 2022,
-      borrowCount: 214,
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCO34Y508de6iKw_qzLC6_2khlv2bRyBx7h4XorhVHnkzkfFsZrBK2DSPcgTd44O7j5m5-RkYK8pzR8LEimeUNuEwz1stpZtQih_LSmdcghLYsPq2SQ9qjWWab5_2CnsV6Zqq3xuxpo2Oq24iCXn2k0i0lsSg-QZ6iYM_UMoNAFOsE5t6pdyclTmaKDagds72W3NKb4tDwSuaAiebME6HzI6wZi5Wjo71jnzKrk2tUmrhhNjaH8xS2LmGL6n-eW3WasselkmOJZo1N9',
-    ),
-    CatalogBookModel(
-      title: 'Sapiens',
-      author: 'Yuval Noah Harari',
-      rating: '4.7',
-      isAvailable: true,
-      category: 'history',
-      libraryName: 'Social Science Library',
-      libraryDistanceKm: 3.8,
-      publishedYear: 2021,
-      borrowCount: 176,
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuDEqwKBnH8vr-PuYXSy-6DZAa4WouAOjyZyx_VITYRgXX4O-V6P91OszSCt6POwHB-N3EqTfV_FxrGpEBPDYWt7aQHuepWAppe-0kAkpYVcV4rW0Xo5oflqor5X0LsySQdvSBetLpMUj--CtpaPsIY0NWRunpbDxpAimtXprYZ9FpWPwVo8A5FkIq0Z2YnX9fno3vayr12fwde3Ls9uIsVOzW54MWruq8G3QgkgleR4gHF4sQFr27d0d-0GU-mILt1lXSU5qQDyErXJ',
-    ),
-    CatalogBookModel(
-      title: 'Thinking, Fast and Slow',
-      author: 'Daniel Kahneman',
-      rating: '4.8',
-      isAvailable: true,
-      category: 'psychology',
-      libraryName: 'Business Library',
-      libraryDistanceKm: 5.6,
-      publishedYear: 2024,
-      borrowCount: 96,
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCKFM0hqygsbsRpvlKPieR5QZ3wUJdUwrrBHNvQ1Xpl_v3ZyA2CmnI00VaWHwip_nSReK2A1rJCVl7vEvj_6GHlAQoJfDpPgTYJqnBXKHXfeIo_c1DzD7QiEgTpXf1ZPg8h8dNHYVz5tcnG1DXoK7rFK6crYXvhdhmP-hrqmjuHxC6QpDXSz83Cw4kbbm66191LxJ0-LCs-MsA7ku1zhR_2-LvjOu3JhVwrvQe_02XnkIyhOq8GzSZroYhnNcYXyffs4Yw7EA2DwGBg',
-    ),
-  ];
+  // ── Dynamic category options (dari API) ───────────────────────────────────
 
-  List<CatalogBookModel> get filteredBooks {
+  /// Daftar opsi kategori yang selalu sinkron dengan data API.
+  List<CatalogFilterOption<String>> get categoryOptions {
+    final allOption = const CatalogFilterOption<String>(
+      label: 'Semua kategori',
+      value: 'all',
+    );
+
+    if (apiCategories.isEmpty) return [allOption];
+
+    return [
+      allOption,
+      ...apiCategories.map(
+        (cat) => CatalogFilterOption<String>(
+          label: cat.name,
+          value: cat.slug,
+        ),
+      ),
+    ];
+  }
+
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
+
+  @override
+  void onInit() {
+    super.onInit();
+    _loadAll();
+  }
+
+  // ── Public methods ─────────────────────────────────────────────────────────
+
+  /// Dipanggil setiap kali user kembali ke tab Catalog.
+  /// Me-refresh categories + books dan mereset filter ke default.
+  Future<void> refresh() async {
+    resetFilters();
+    await _loadAll();
+  }
+
+  /// Dipanggil dari home page saat navigasi ke Catalog dengan category tertentu
+  /// (misalnya dari icon kategori di dashboard).
+  void applyInitialCategory(String? slug) {
+    if (slug == null || slug.trim().isEmpty) return;
+    selectedCategoryKey.value = slug.trim();
+  }
+
+  Future<void> loadBooks() async {
+    isLoading.value = true;
+    errorMessage.value = '';
+
+    try {
+      final service = Get.find<HomeApiService>();
+      final result = await service.getCatalogBooks(sort: 'trending', limit: 30);
+      books.assignAll(result);
+      // Sync wishlist state from API response
+      favoriteBookIds.clear();
+      for (final book in result) {
+        if (book.userContext?.isWishlisted == true) {
+          favoriteBookIds.add(book.id);
+        }
+      }
+      favoriteBookIds.refresh();
+    } on LuminaApiException catch (e) {
+      errorMessage.value = e.displayMessage;
+    } catch (e) {
+      errorMessage.value = 'Gagal memuat buku. Periksa koneksi internet.';
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> loadCategories() async {
+    isCategoriesLoading.value = true;
+
+    try {
+      final service = Get.find<HomeApiService>();
+      final result = await service.getCategories();
+      apiCategories.assignAll(result);
+
+      // Validasi: jika selected category tidak ada lagi di daftar terbaru, reset.
+      _validateCategoryFilter();
+    } on LuminaApiException catch (_) {
+      // Biarkan apiCategories tetap seperti sebelumnya (atau kosong saat pertama).
+    } catch (_) {
+      // Silent fail — filter tetap tampil (meski dengan data lama).
+    } finally {
+      isCategoriesLoading.value = false;
+    }
+  }
+
+  // ── Filtered data ──────────────────────────────────────────────────────────
+
+  List<BookModel> get filteredBooks {
     final distanceKey = selectedDistanceKey.value;
     final categoryKey = selectedCategoryKey.value;
     final availabilityKey = selectedAvailabilityKey.value;
@@ -129,19 +168,19 @@ class LibraryCatalogController extends GetxController {
 
     final result = books.where((book) {
       final distanceMatched = _isDistanceMatched(
-        book.libraryDistanceKm,
+        book.branch?.distanceKm ?? 0,
         distanceKey,
       );
 
-      final categoryMatched =
-          categoryKey == defaultCategoryKey || book.category == categoryKey;
+      final categoryMatched = categoryKey == defaultCategoryKey ||
+          (book.category?.slug ?? '') == categoryKey;
 
       final availabilityMatched = availabilityKey == defaultAvailabilityKey ||
           (availabilityKey == 'available' && book.isAvailable) ||
           (availabilityKey == 'borrowed' && !book.isAvailable);
 
       final publishedYearMatched =
-          publishedYear == null || book.publishedYear == publishedYear;
+          publishedYear == null || book.publishYear == publishedYear;
 
       return distanceMatched &&
           categoryMatched &&
@@ -152,11 +191,13 @@ class LibraryCatalogController extends GetxController {
     result.sort((a, b) {
       switch (sortKey) {
         case 'nearby':
-          return a.libraryDistanceKm.compareTo(b.libraryDistanceKm);
+          final aDist = a.branch?.distanceKm ?? 0;
+          final bDist = b.branch?.distanceKm ?? 0;
+          return aDist.compareTo(bDist);
         case 'rating':
-          return _parseRating(b.rating).compareTo(_parseRating(a.rating));
+          return b.ratingAverage.compareTo(a.ratingAverage);
         case 'newest':
-          return b.publishedYear.compareTo(a.publishedYear);
+          return (b.publishYear ?? 0).compareTo(a.publishYear ?? 0);
         case 'popular':
         default:
           return b.borrowCount.compareTo(a.borrowCount);
@@ -166,15 +207,15 @@ class LibraryCatalogController extends GetxController {
     return result;
   }
 
+  // ── Filter state ───────────────────────────────────────────────────────────
+
   int get activeFilterCount {
     var count = 0;
-
     if (selectedDistanceKey.value != defaultDistanceKey) count++;
     if (selectedCategoryKey.value != defaultCategoryKey) count++;
     if (selectedAvailabilityKey.value != defaultAvailabilityKey) count++;
     if (selectedPublishedYear.value != null) count++;
     if (selectedSortKey.value != defaultSortKey) count++;
-
     return count;
   }
 
@@ -193,25 +234,14 @@ class LibraryCatalogController extends GetxController {
     return '$category • $distance • $availability • $publishedYear • $sort';
   }
 
-  void setDistanceFilter(String value) {
-    selectedDistanceKey.value = value;
-  }
+  // ── Filter setters ─────────────────────────────────────────────────────────
 
-  void setCategoryFilter(String value) {
-    selectedCategoryKey.value = value;
-  }
-
-  void setAvailabilityFilter(String value) {
-    selectedAvailabilityKey.value = value;
-  }
-
-  void setPublishedYearFilter(int? value) {
-    selectedPublishedYear.value = value;
-  }
-
-  void setSortFilter(String value) {
-    selectedSortKey.value = value;
-  }
+  void setDistanceFilter(String value) => selectedDistanceKey.value = value;
+  void setCategoryFilter(String value) => selectedCategoryKey.value = value;
+  void setAvailabilityFilter(String value) =>
+      selectedAvailabilityKey.value = value;
+  void setPublishedYearFilter(int? value) => selectedPublishedYear.value = value;
+  void setSortFilter(String value) => selectedSortKey.value = value;
 
   void resetFilters() {
     selectedDistanceKey.value = defaultDistanceKey;
@@ -221,18 +251,52 @@ class LibraryCatalogController extends GetxController {
     selectedSortKey.value = defaultSortKey;
   }
 
-  void toggleFavorite(int index) {
-    if (favoriteIndexes.contains(index)) {
-      favoriteIndexes.remove(index);
-    } else {
-      favoriteIndexes.add(index);
-    }
+  Future<void> toggleFavorite(String bookId) async {
+    final isCurrentlyFav = favoriteBookIds.contains(bookId);
 
-    favoriteIndexes.refresh();
+    // Optimistic update
+    if (isCurrentlyFav) {
+      favoriteBookIds.remove(bookId);
+    } else {
+      favoriteBookIds.add(bookId);
+    }
+    favoriteBookIds.refresh();
+
+    try {
+      await Get.find<HomeApiService>().toggleWishlist(bookId);
+      LuminaToast.success(
+        isCurrentlyFav ? 'Dihapus dari wishlist' : 'Ditambahkan ke wishlist',
+      );
+    } catch (_) {
+      // Rollback
+      if (isCurrentlyFav) {
+        favoriteBookIds.add(bookId);
+      } else {
+        favoriteBookIds.remove(bookId);
+      }
+      favoriteBookIds.refresh();
+      LuminaToast.error('Gagal mengubah status wishlist.');
+    }
   }
 
-  void handleBorrowTap(CatalogBookModel book) {
-    debugPrint('Borrow tapped: ${book.title}');
+  // ── Private helpers ────────────────────────────────────────────────────────
+
+  Future<void> _loadAll() async {
+    // Jalankan keduanya secara paralel.
+    await Future.wait([
+      loadCategories(),
+      loadBooks(),
+    ]);
+  }
+
+  void _validateCategoryFilter() {
+    final current = selectedCategoryKey.value;
+    if (current == defaultCategoryKey) return;
+
+    final validSlugs = apiCategories.map((c) => c.slug).toSet();
+    if (!validSlugs.contains(current)) {
+      selectedCategoryKey.value = defaultCategoryKey;
+    }
   }
 
   bool _isDistanceMatched(double distanceKm, String distanceKey) {
@@ -249,10 +313,6 @@ class LibraryCatalogController extends GetxController {
       default:
         return true;
     }
-  }
-
-  double _parseRating(String value) {
-    return double.tryParse(value) ?? 0;
   }
 
   String _findLabel<T>(List<CatalogFilterOption<T>> options, T value) {

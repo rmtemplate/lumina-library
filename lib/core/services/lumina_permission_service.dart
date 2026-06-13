@@ -110,6 +110,8 @@ class LuminaPermissionService {
   }
 
   static Future<Map<Permission, PermissionStatus>> checkAll() async {
+    if (kIsWeb) return {};
+
     final items = await getItems();
     final result = <Permission, PermissionStatus>{};
 
@@ -121,6 +123,8 @@ class LuminaPermissionService {
   }
 
   static Future<Map<Permission, PermissionStatus>> requestAll() async {
+    if (kIsWeb) return {};
+
     final items = await getItems();
 
     final permissions = items
@@ -132,6 +136,7 @@ class LuminaPermissionService {
   }
 
   static bool allGranted(Map<Permission, PermissionStatus> statuses) {
+    if (kIsWeb) return true;
     if (statuses.isEmpty) return false;
 
     return statuses.values.every(
@@ -140,11 +145,18 @@ class LuminaPermissionService {
   }
 
   static Future<bool> areAllGranted() async {
+    if (kIsWeb) return true;
+
     final statuses = await checkAll();
     return allGranted(statuses);
   }
 
   static Future<void> navigateWithCheck(VoidCallback onGranted) async {
+    if (kIsWeb) {
+      onGranted();
+      return;
+    }
+
     final granted = await areAllGranted();
 
     if (granted) {

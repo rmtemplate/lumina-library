@@ -5,10 +5,12 @@ import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/home/library_dashboard_controller.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/controllers/notification/library_notification_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/cart/library_cart_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/catalog/library_book_detail_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/catalog/library_catalog_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/library_location/library_nearby_library_detail_page.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/pages/notification/library_notification_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/catalog/library_trending_book_card.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/home/library_category_icon_item.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/home/library_featured_banner.dart';
@@ -37,12 +39,18 @@ class LibraryDashboardPage extends StatelessWidget {
       child: Column(
         children: [
           // ── Top bar ────────────────────────────────────────────────────
-          Obx(() => LibraryHomeTopBar(
-                userName: c.userName.value.isNotEmpty ? c.userName.value : 'Halo',
-                avatarUrl: c.userAvatarUrl.value ?? '',
-                onCartTap: () => Get.to(() => LibraryCartPage()),
-                onNotificationTap: () {},
-              )),
+          Obx(() {
+            final notifCtrl = Get.isRegistered<LibraryNotificationController>()
+                ? Get.find<LibraryNotificationController>()
+                : null;
+            return LibraryHomeTopBar(
+              userName: c.userName.value.isNotEmpty ? c.userName.value : 'Halo',
+              avatarUrl: c.userAvatarUrl.value ?? '',
+              unreadNotificationCount: notifCtrl?.unreadCount.value ?? 0,
+              onCartTap: () => Get.to(() => LibraryCartPage()),
+              onNotificationTap: () => Get.to(() => const LibraryNotificationPage()),
+            );
+          }),
 
           // ── Body ───────────────────────────────────────────────────────
           Expanded(

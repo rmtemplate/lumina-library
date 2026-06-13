@@ -4,6 +4,7 @@ import 'package:lumina_library/features/staff/presentation/pages/rack/manage_rac
 
 import '../../../../../core/theme/lumina_colors.dart';
 import '../../../../../core/theme/lumina_spacing.dart';
+import '../../../../../shared/widgets/feedback/lumina_toast.dart';
 import '../../controllers/rack/rack_controller.dart';
 import '../../widgets/rack/rack_management_widgets.dart';
 
@@ -48,13 +49,7 @@ class RackListPage extends StatelessWidget {
               onLeadingTap: Get.back,
               trailingIcon: Icons.tune_rounded,
               onTrailingTap: () {
-                Get.snackbar(
-                  'Filter Rak',
-                  'Filter lanjutan belum tersedia.',
-                  snackPosition: SnackPosition.BOTTOM,
-                  margin: const EdgeInsets.all(16),
-                  duration: const Duration(seconds: 2),
-                );
+                LuminaToast.info('Filter lanjutan belum tersedia.');
               },
             );
           }),

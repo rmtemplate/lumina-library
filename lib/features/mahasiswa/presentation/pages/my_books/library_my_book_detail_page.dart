@@ -5,12 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:screen_protector/screen_protector.dart';
 
+import 'package:lumina_library/core/network/lumina_api_exception.dart';
 import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/library_location/library_route_map_page.dart';
 import 'package:lumina_library/shared/models/book/library_my_book_item_model.dart';
+import 'package:lumina_library/shared/models/borrowing/checkout_result_model.dart';
+import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
 
 class LibraryMyBookDetailPage extends StatelessWidget {
   const LibraryMyBookDetailPage({
@@ -34,7 +38,26 @@ class LibraryMyBookDetailPage extends StatelessWidget {
 
   void _showReturnQrBottomSheet() {
     Get.bottomSheet<void>(
-      _ReturnQrBottomSheet(book: book),
+      _BorrowingQrBottomSheet(
+        borrowingId: book.loanId,
+        borrowingCode: book.bookCode,
+        isPickup: false,
+      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withOpacity(0.42),
+      isDismissible: true,
+      enableDrag: true,
+    );
+  }
+
+  void _showPickupQrBottomSheet() {
+    Get.bottomSheet<void>(
+      _BorrowingQrBottomSheet(
+        borrowingId: book.loanId,
+        borrowingCode: book.bookCode,
+        isPickup: true,
+      ),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.42),
@@ -44,26 +67,25 @@ class LibraryMyBookDetailPage extends StatelessWidget {
   }
 
   void _handlePayFine() {
-    Get.snackbar(
-      'Pay Fine',
-      'Please continue the fine payment of ${book.fineAmountText}.',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: LuminaColors.errorContainer,
-      colorText: LuminaColors.onErrorContainer,
-      margin: const EdgeInsets.all(LuminaSpacing.marginMobile),
-      borderRadius: LuminaRadius.lg,
-    );
+    LuminaToast.warning('Fitur pembayaran denda belum tersedia. Total: ${book.fineAmountText}.');
   }
 
   @override
   Widget build(BuildContext context) {
+    final showReturnQr = book.canReturn;
+    final showPickupQr = book.canPickup || book.isAwaitingPickup;
+    final showQrButton = showReturnQr || showPickupQr;
+
     return Scaffold(
       backgroundColor: LuminaColors.background,
-      bottomNavigationBar: _LoanBottomActionBar(
-        showPayFineButton: book.mustPayFine,
-        onShowQrTap: _showReturnQrBottomSheet,
-        onPayFineTap: _handlePayFine,
-      ),
+      bottomNavigationBar: showQrButton || book.mustPayFine
+          ? _LoanBottomActionBar(
+              showPickupQr: showPickupQr,
+              showPayFineButton: book.mustPayFine,
+              onShowQrTap: showPickupQr ? _showPickupQrBottomSheet : _showReturnQrBottomSheet,
+              onPayFineTap: _handlePayFine,
+            )
+          : null,
       body: Column(
         children: [
           const _LoanDetailTopBar(),
@@ -223,6 +245,10 @@ class _LoanStatusBanner extends StatelessWidget {
 
   IconData _statusIcon(LibraryMyBookStatus status) {
     switch (status) {
+      case LibraryMyBookStatus.pending:
+        return Icons.hourglass_top_rounded;
+      case LibraryMyBookStatus.awaitingPickup:
+        return Icons.store_rounded;
       case LibraryMyBookStatus.active:
         return Icons.check_circle_rounded;
       case LibraryMyBookStatus.dueSoon:
@@ -231,11 +257,21 @@ class _LoanStatusBanner extends StatelessWidget {
         return Icons.warning_amber_rounded;
       case LibraryMyBookStatus.finished:
         return Icons.assignment_turned_in_rounded;
+      case LibraryMyBookStatus.waitingPayment:
+        return Icons.payments_rounded;
+      case LibraryMyBookStatus.expired:
+        return Icons.event_busy_rounded;
+      case LibraryMyBookStatus.cancelled:
+        return Icons.cancel_rounded;
     }
   }
 
   Color _statusColor(LibraryMyBookStatus status) {
     switch (status) {
+      case LibraryMyBookStatus.pending:
+        return const Color(0xFF6B5B00);
+      case LibraryMyBookStatus.awaitingPickup:
+        return LuminaColors.secondary;
       case LibraryMyBookStatus.active:
         return LuminaColors.secondary;
       case LibraryMyBookStatus.dueSoon:
@@ -244,11 +280,20 @@ class _LoanStatusBanner extends StatelessWidget {
         return LuminaColors.error;
       case LibraryMyBookStatus.finished:
         return LuminaColors.onSurfaceVariant;
+      case LibraryMyBookStatus.waitingPayment:
+        return LuminaColors.error;
+      case LibraryMyBookStatus.expired:
+      case LibraryMyBookStatus.cancelled:
+        return LuminaColors.onSurfaceVariant;
     }
   }
 
   Color _statusBackgroundColor(LibraryMyBookStatus status) {
     switch (status) {
+      case LibraryMyBookStatus.pending:
+        return const Color(0xFFFFF8E1);
+      case LibraryMyBookStatus.awaitingPickup:
+        return LuminaColors.secondaryContainer.withOpacity(0.20);
       case LibraryMyBookStatus.active:
         return LuminaColors.secondaryContainer.withOpacity(0.20);
       case LibraryMyBookStatus.dueSoon:
@@ -256,6 +301,11 @@ class _LoanStatusBanner extends StatelessWidget {
       case LibraryMyBookStatus.overdue:
         return LuminaColors.errorContainer.withOpacity(0.62);
       case LibraryMyBookStatus.finished:
+        return LuminaColors.surfaceContainerLow;
+      case LibraryMyBookStatus.waitingPayment:
+        return LuminaColors.errorContainer.withOpacity(0.40);
+      case LibraryMyBookStatus.expired:
+      case LibraryMyBookStatus.cancelled:
         return LuminaColors.surfaceContainerLow;
     }
   }
@@ -643,17 +693,21 @@ class _FineSummaryCard extends StatelessWidget {
 
 class _LoanBottomActionBar extends StatelessWidget {
   const _LoanBottomActionBar({
+    required this.showPickupQr,
     required this.showPayFineButton,
     required this.onShowQrTap,
     required this.onPayFineTap,
   });
 
+  final bool showPickupQr;
   final bool showPayFineButton;
   final VoidCallback onShowQrTap;
   final VoidCallback onPayFineTap;
 
   @override
   Widget build(BuildContext context) {
+    final qrLabel = showPickupQr ? 'QR Pengambilan' : 'QR Pengembalian';
+
     return Material(
       color: LuminaColors.surface.withOpacity(0.98),
       elevation: 18,
@@ -683,7 +737,7 @@ class _LoanBottomActionBar extends StatelessWidget {
                     onPressed: onShowQrTap,
                     icon: const Icon(Icons.qr_code_2_rounded, size: 20),
                     label: Text(
-                      'Show QR',
+                      qrLabel,
                       style: LuminaTextStyles.titleSm.copyWith(
                         color: LuminaColors.primary,
                         fontWeight: FontWeight.w900,
@@ -711,7 +765,7 @@ class _LoanBottomActionBar extends StatelessWidget {
                       onPressed: onPayFineTap,
                       icon: const Icon(Icons.payment_rounded, size: 20),
                       label: Text(
-                        'Pay Fine',
+                        'Bayar Denda',
                         style: LuminaTextStyles.titleSm.copyWith(
                           color: LuminaColors.onError,
                           fontWeight: FontWeight.w900,
@@ -739,129 +793,226 @@ class _LoanBottomActionBar extends StatelessWidget {
   }
 }
 
-class _ReturnQrBottomSheet extends StatefulWidget {
-  const _ReturnQrBottomSheet({
-    required this.book,
+// ─── Backend-integrated QR Bottom Sheet (pickup & return) ────────────────────
+
+class _BorrowingQrBottomSheet extends StatefulWidget {
+  const _BorrowingQrBottomSheet({
+    required this.borrowingId,
+    required this.borrowingCode,
+    required this.isPickup,
   });
 
-  final LibraryMyBookItemModel book;
+  final String borrowingId;
+  final String borrowingCode;
+  /// true → QR Pengambilan (/borrowings/{id}/qr/refresh)
+  /// false → QR Pengembalian (/my-books/{id}/return-qr/refresh)
+  final bool isPickup;
 
   @override
-  State<_ReturnQrBottomSheet> createState() => _ReturnQrBottomSheetState();
+  State<_BorrowingQrBottomSheet> createState() => _BorrowingQrBottomSheetState();
 }
 
-class _ReturnQrBottomSheetState extends State<_ReturnQrBottomSheet> {
-  static const Duration _qrLifetime = Duration(seconds: 60);
+class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
+  static final Map<String, CheckoutQrModel> _qrCache = {};
+  static final Map<String, DateTime> _qrExpiryCache = {};
 
-  Timer? _timer;
-  late DateTime _generatedAt;
-  late DateTime _expiredAt;
-  late String _qrToken;
+  Timer? _countdownTimer;
+  CheckoutQrModel? _qr;
+  bool _isLoading = true;
+  bool _isRefreshing = false;
+  bool _isExpired = false;
+  int _secondsLeft = 0;
+
+  String get _cacheKey =>
+      '${widget.borrowingId}_${widget.isPickup ? "pickup" : "return"}';
 
   @override
   void initState() {
     super.initState();
-    _generateQrToken();
-    _startTimer();
+    _fetchQr();
     unawaited(_enableScreenProtection());
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _countdownTimer?.cancel();
     unawaited(_disableScreenProtection());
     super.dispose();
   }
 
-  bool get _isExpired {
-    return DateTime.now().isAfter(_expiredAt);
+  Future<void> _fetchQr() async {
+    final cacheKey = _cacheKey;
+    final cached = _qrCache[cacheKey];
+    final cachedExpiry = _qrExpiryCache[cacheKey];
+
+    if (cached != null && cachedExpiry != null) {
+      debugPrint('[QR] Existing QR found');
+      debugPrint('[QR] Expired At: $cachedExpiry');
+      debugPrint('[QR] Current Time: ${DateTime.now()}');
+      if (DateTime.now().isBefore(cachedExpiry)) {
+        debugPrint('[QR] QR still valid');
+        debugPrint('[QR] Using cached QR');
+        debugPrint('[QR] Skip refresh request');
+        final remaining =
+            cachedExpiry.difference(DateTime.now()).inSeconds.clamp(0, 86400);
+        if (mounted) {
+          setState(() {
+            _qr = cached;
+            _isLoading = false;
+          });
+          _startCountdown(remaining);
+        }
+        return;
+      }
+      debugPrint('[QR] QR expired');
+    }
+
+    debugPrint('[QR] Requesting new QR');
+    debugPrint(
+      '[QR] Refresh endpoint: ${widget.isPickup ? "/borrowings/${widget.borrowingId}/qr/refresh" : "/my-books/${widget.borrowingId}/return-qr/refresh"}',
+    );
+    setState(() { _isLoading = true; });
+    try {
+      final service = Get.find<HomeApiService>();
+      final qr = widget.isPickup
+          ? await service.refreshPickupQr(widget.borrowingId)
+          : await service.refreshReturnQr(widget.borrowingId);
+      if (!mounted) return;
+      final expiry = _parseQrExpiry(qr);
+      _qrCache[cacheKey] = qr;
+      _qrExpiryCache[cacheKey] = expiry;
+      debugPrint('[QR] New QR received');
+      debugPrint('[QR] QR cache updated — expires at $expiry');
+      setState(() {
+        _qr = qr;
+        _isLoading = false;
+      });
+      _startCountdown(qr.ttlSeconds);
+    } on LuminaApiException catch (e) {
+      if (!mounted) return;
+      setState(() { _isLoading = false; });
+      LuminaToast.error(e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _isLoading = false; });
+      LuminaToast.error('Gagal memuat QR. Silakan coba lagi.');
+    }
   }
 
-  int get _remainingSeconds {
-    final seconds = _expiredAt.difference(DateTime.now()).inSeconds;
-    if (seconds <= 0) return 0;
+  Future<void> _refreshQr() async {
+    if (_isRefreshing) return;
+    // Clear cache so the upcoming API call is not short-circuited by _fetchQr
+    _qrCache.remove(_cacheKey);
+    _qrExpiryCache.remove(_cacheKey);
+    setState(() { _isRefreshing = true; _isExpired = false; });
+    _countdownTimer?.cancel();
+    debugPrint('[QR] Requesting new QR');
+    debugPrint(
+      '[QR] Refresh endpoint: ${widget.isPickup ? "/borrowings/${widget.borrowingId}/qr/refresh" : "/my-books/${widget.borrowingId}/return-qr/refresh"}',
+    );
+    try {
+      final service = Get.find<HomeApiService>();
+      final qr = widget.isPickup
+          ? await service.refreshPickupQr(widget.borrowingId)
+          : await service.refreshReturnQr(widget.borrowingId);
+      if (!mounted) return;
+      final expiry = _parseQrExpiry(qr);
+      _qrCache[_cacheKey] = qr;
+      _qrExpiryCache[_cacheKey] = expiry;
+      debugPrint('[QR] New QR received');
+      debugPrint('[QR] QR cache updated — expires at $expiry');
+      setState(() {
+        _qr = qr;
+        _isRefreshing = false;
+      });
+      _startCountdown(qr.ttlSeconds);
+    } on LuminaApiException catch (e) {
+      if (!mounted) return;
+      setState(() { _isRefreshing = false; });
+      LuminaToast.error(e.displayMessage);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() { _isRefreshing = false; });
+      LuminaToast.error('Gagal memperbarui QR. Silakan coba lagi.');
+    }
+  }
 
-    return seconds;
+  DateTime _parseQrExpiry(CheckoutQrModel qr) {
+    final expiresAt = qr.expiresAt;
+    if (expiresAt != null && expiresAt.isNotEmpty) {
+      try {
+        return DateTime.parse(expiresAt).toLocal();
+      } catch (_) {}
+    }
+    return DateTime.now().add(Duration(seconds: qr.ttlSeconds));
+  }
+
+  void _startCountdown(int ttlSeconds) {
+    _countdownTimer?.cancel();
+    _secondsLeft = ttlSeconds;
+    _isExpired = false;
+
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        if (_secondsLeft > 0) {
+          _secondsLeft--;
+        } else {
+          _isExpired = true;
+          _countdownTimer?.cancel();
+        }
+      });
+    });
   }
 
   String get _remainingTimeText {
-    final seconds = _remainingSeconds;
-    final minutes = (seconds ~/ 60).toString().padLeft(2, '0');
-    final restSeconds = (seconds % 60).toString().padLeft(2, '0');
-
-    return '$minutes:$restSeconds';
-  }
-
-  void _generateQrToken() {
-    final now = DateTime.now();
-
-    _generatedAt = now;
-    _expiredAt = now.add(_qrLifetime);
-    _qrToken =
-        '${widget.book.loanId}|${now.millisecondsSinceEpoch}|${_expiredAt.millisecondsSinceEpoch}';
-  }
-
-  void _regenerateQrToken() {
-    setState(_generateQrToken);
-  }
-
-  void _startTimer() {
-    _timer?.cancel();
-
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() {});
-    });
+    final m = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
+    final s = (_secondsLeft % 60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   Future<void> _enableScreenProtection() async {
     if (kIsWeb) return;
-
     try {
       await ScreenProtector.preventScreenshotOn();
       await ScreenProtector.protectDataLeakageOn();
-    } catch (_) {
-      // Ignore plugin/platform errors so QR can still be displayed.
-    }
+    } catch (_) {}
   }
 
   Future<void> _disableScreenProtection() async {
     if (kIsWeb) return;
-
     try {
       await ScreenProtector.preventScreenshotOff();
       await ScreenProtector.protectDataLeakageOff();
-    } catch (_) {
-      // Ignore plugin/platform errors.
-    }
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    final expired = _isExpired;
+    final title = widget.isPickup ? 'QR Pengambilan' : 'QR Pengembalian';
+    final description = widget.isPickup
+        ? 'Tunjukkan QR ini ke petugas perpustakaan untuk mengambil buku yang sudah dipesan.'
+        : 'Tunjukkan QR ini ke petugas perpustakaan untuk menyelesaikan proses pengembalian.';
 
     return SafeArea(
       top: false,
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(
-            LuminaSpacing.marginMobile,
-            LuminaSpacing.md,
-            LuminaSpacing.marginMobile,
-            LuminaSpacing.marginMobile,
-          ),
-          decoration: const BoxDecoration(
-            color: LuminaColors.surface,
-            borderRadius: BorderRadius.vertical(
-              top: Radius.circular(LuminaRadius.xl),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: LuminaColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(LuminaRadius.xl)),
+        ),
+        padding: const EdgeInsets.fromLTRB(
+          LuminaSpacing.marginMobile,
+          LuminaSpacing.md,
+          LuminaSpacing.marginMobile,
+          LuminaSpacing.marginMobile,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
                 width: 48,
                 height: 5,
                 decoration: BoxDecoration(
@@ -869,51 +1020,223 @@ class _ReturnQrBottomSheetState extends State<_ReturnQrBottomSheet> {
                   borderRadius: BorderRadius.circular(LuminaRadius.full),
                 ),
               ),
-              const SizedBox(height: LuminaSpacing.lg),
-              _SecureQrContent(
-                book: widget.book,
-                qrToken: _qrToken,
-                expired: expired,
-                remainingTimeText: _remainingTimeText,
-                generatedAt: _generatedAt,
-                expiredAt: _expiredAt,
-                onRegenerateTap: _regenerateQrToken,
+            ),
+
+            const SizedBox(height: LuminaSpacing.lg),
+
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: LuminaTextStyles.titleLg.copyWith(
+                color: LuminaColors.primary,
+                fontWeight: FontWeight.w900,
               ),
-              const SizedBox(height: LuminaSpacing.lg),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: OutlinedButton(
-                  onPressed: Get.back,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: LuminaColors.primary,
-                    side: BorderSide(
-                      color: LuminaColors.primary.withOpacity(0.24),
-                      width: 1,
+            ),
+
+            const SizedBox(height: LuminaSpacing.xs),
+
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: LuminaTextStyles.bodyMd.copyWith(
+                color: LuminaColors.onSurfaceVariant,
+                height: 1.4,
+              ),
+            ),
+
+            const SizedBox(height: LuminaSpacing.md),
+
+            // Loading state
+            if (_isLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: LuminaSpacing.xl),
+                child: CircularProgressIndicator(),
+              )
+            else if (_qr == null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: LuminaSpacing.xl),
+                child: Column(
+                  children: [
+                    const Icon(Icons.error_outline_rounded, color: LuminaColors.error, size: 48),
+                    const SizedBox(height: LuminaSpacing.sm),
+                    Text(
+                      'Gagal memuat QR',
+                      style: LuminaTextStyles.bodyMd.copyWith(color: LuminaColors.error),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(LuminaRadius.full),
+                    const SizedBox(height: LuminaSpacing.md),
+                    OutlinedButton(
+                      onPressed: _fetchQr,
+                      child: const Text('Coba Lagi'),
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              // Countdown pill
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: LuminaSpacing.md, vertical: LuminaSpacing.xs),
+                decoration: BoxDecoration(
+                  color: _isExpired
+                      ? LuminaColors.error.withOpacity(0.10)
+                      : (_secondsLeft <= 15
+                          ? LuminaColors.error.withOpacity(0.10)
+                          : LuminaColors.secondary.withOpacity(0.10)),
+                  borderRadius: BorderRadius.circular(LuminaRadius.full),
+                  border: Border.all(
+                    color: _isExpired || _secondsLeft <= 15
+                        ? LuminaColors.error.withOpacity(0.28)
+                        : LuminaColors.secondary.withOpacity(0.28),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      _isExpired ? Icons.timer_off_rounded : Icons.timer_rounded,
+                      size: 16,
+                      color: _isExpired || _secondsLeft <= 15
+                          ? LuminaColors.error
+                          : LuminaColors.secondary,
+                    ),
+                    const SizedBox(width: LuminaSpacing.xs),
+                    Text(
+                      _isExpired ? 'QR Kadaluwarsa' : _remainingTimeText,
+                      style: LuminaTextStyles.labelMd.copyWith(
+                        color: _isExpired || _secondsLeft <= 15
+                            ? LuminaColors.error
+                            : LuminaColors.secondary,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: LuminaSpacing.md),
+
+              // QR image
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Opacity(
+                    opacity: _isExpired ? 0.22 : 1.0,
+                    child: Container(
+                      width: 220,
+                      height: 220,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+                        border: Border.all(
+                          color: _isExpired
+                              ? LuminaColors.error.withOpacity(0.3)
+                              : LuminaColors.outlineVariant.withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      padding: const EdgeInsets.all(LuminaSpacing.sm),
+                      child: _qr!.imageBytes != null
+                          ? Image.memory(_qr!.imageBytes!, fit: BoxFit.contain)
+                          : const Icon(Icons.qr_code_2_rounded, size: 80, color: LuminaColors.primary),
                     ),
                   ),
-                  child: Text(
-                    'Close',
+                  if (_isExpired)
+                    Container(
+                      width: 220,
+                      height: 220,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.45),
+                        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.lock_clock_rounded, color: Colors.white, size: 36),
+                          const SizedBox(height: LuminaSpacing.xs),
+                          Text(
+                            'QR Kadaluwarsa',
+                            style: LuminaTextStyles.titleMd.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+
+              const SizedBox(height: LuminaSpacing.md),
+
+              // Perbarui QR button
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  onPressed: _isRefreshing ? null : _refreshQr,
+                  icon: _isRefreshing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.refresh_rounded, size: 18),
+                  label: Text(
+                    _isRefreshing ? 'Memperbarui...' : 'Perbarui QR',
                     style: LuminaTextStyles.titleSm.copyWith(
-                      color: LuminaColors.primary,
-                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    elevation: 0,
+                    backgroundColor: LuminaColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(LuminaRadius.full),
                     ),
                   ),
                 ),
               ),
             ],
-          ),
+
+            const SizedBox(height: LuminaSpacing.sm),
+
+            // Tutup button
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: OutlinedButton(
+                onPressed: Get.back,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: LuminaColors.primary,
+                  side: BorderSide(color: LuminaColors.primary.withOpacity(0.24), width: 1),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LuminaRadius.full)),
+                ),
+                child: Text(
+                  'Tutup',
+                  style: LuminaTextStyles.titleSm.copyWith(
+                    color: LuminaColors.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _SecureQrContent extends StatelessWidget {
-  const _SecureQrContent({
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Placeholder to preserve compile from old dead code references
+class _SecureQrContent_PLACEHOLDER extends StatelessWidget {
+  const _SecureQrContent_PLACEHOLDER({
     required this.book,
     required this.qrToken,
     required this.expired,

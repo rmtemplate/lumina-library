@@ -12,6 +12,7 @@ class LibraryHomeTopBar extends StatelessWidget {
     this.appName = 'Lumina Library',
     this.avatarUrl =
         'https://lh3.googleusercontent.com/aida-public/AB6AXuB6M5wKgD9gfoPIAqHAU7Uyw_bSonoCVJOGlL4Gaw0QWc6MZZ0F1gVo8lo5Szngekb6zXikcQuYbv1awIJAttiSjCztuALyKssaXPeotpep7rDZrNvQJ5FcBqeUnAY6rQkES6JpxDuim7UUYRvUOfN6eWPuxNLOiWAvs5nhueAkgctiiHXl4CRKceDlIxGNr23rSh61GMH_z-vExOo42mk50FNfBuJAz0U7EF-14zhbaeSI30a6sZG34dRqHpNOTtaS6JU_RjaSmN05',
+    this.unreadNotificationCount = 0,
     this.onNotificationTap,
     this.onCartTap,
   });
@@ -19,6 +20,7 @@ class LibraryHomeTopBar extends StatelessWidget {
   final String userName;
   final String appName;
   final String avatarUrl;
+  final int unreadNotificationCount;
   final VoidCallback? onNotificationTap;
   final VoidCallback? onCartTap;
 
@@ -120,22 +122,44 @@ class LibraryHomeTopBar extends StatelessWidget {
                         color: LuminaColors.primary,
                         size: 26,
                       ),
-                      Positioned(
-                        top: 1,
-                        right: 1,
-                        child: Container(
-                          width: 9,
-                          height: 9,
-                          decoration: BoxDecoration(
-                            color: LuminaColors.error,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: LuminaColors.surface,
-                              width: 2,
+                      if (unreadNotificationCount > 0)
+                        Positioned(
+                          top: 0,
+                          right: 0,
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                            decoration: BoxDecoration(
+                              color: LuminaColors.error,
+                              shape: unreadNotificationCount > 9
+                                  ? BoxShape.rectangle
+                                  : BoxShape.circle,
+                              borderRadius: unreadNotificationCount > 9
+                                  ? BorderRadius.circular(8)
+                                  : null,
+                              border: Border.all(
+                                color: LuminaColors.surface,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Center(
+                              child: Text(
+                                unreadNotificationCount > 9
+                                    ? '9+'
+                                    : '$unreadNotificationCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  height: 1,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),

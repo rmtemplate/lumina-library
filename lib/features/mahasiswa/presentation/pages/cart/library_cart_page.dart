@@ -12,6 +12,7 @@ import 'package:lumina_library/features/mahasiswa/presentation/widgets/layout/li
 import 'package:lumina_library/features/mahasiswa/presentation/pages/checkout/library_checkout_page.dart';
 
 import 'package:lumina_library/shared/models/book/cart_library_group_model.dart';
+import 'package:lumina_library/shared/widgets/skeleton/lumina_skeleton.dart';
 
 class LibraryCartPage extends StatelessWidget {
   LibraryCartPage({
@@ -32,23 +33,14 @@ class LibraryCartPage extends StatelessWidget {
     Get.to(() => const LibraryCheckoutPage());
   }
 
-  Map<String, CartLibraryGroupModel> _buildLibraryGroups() {
-    final groups = <String, CartLibraryGroupModel>{};
-
-    for (final item in controller.cartItems) {
-      final group = groups.putIfAbsent(
-        item.libraryId,
-        () => CartLibraryGroupModel(
-          libraryId: item.libraryId,
-          libraryName: item.libraryName,
-          items: [],
-        ),
+  List<CartLibraryGroupModel> _buildLibraryGroups() {
+    return controller.groups.map((g) {
+      return CartLibraryGroupModel(
+        libraryId: g.branch.id,
+        libraryName: g.branch.name,
+        items: g.items.map(LibraryCartBook.fromCartItem).toList(),
       );
-
-      group.items.add(item);
-    }
-
-    return groups;
+    }).toList();
   }
 
   Future<bool> _showDeleteConfirmSheet(
@@ -77,7 +69,7 @@ class LibraryCartPage extends StatelessWidget {
 
     if (!shouldDelete) return;
 
-    controller.removeBook(book.id);
+    controller.removeItem(book.id);
   }
 
   @override
@@ -95,13 +87,18 @@ class LibraryCartPage extends StatelessWidget {
           ),
           Expanded(
             child: Obx(() {
+              if (controller.isLoading.value) {
+                return const SingleChildScrollView(
+                  physics: NeverScrollableScrollPhysics(),
+                  child: LuminaCartSkeleton(),
+                );
+              }
+
               if (!controller.hasItems) {
                 return const _CartEmptyState();
               }
 
-              final groups = _buildLibraryGroups().values.toList(
-                    growable: false,
-                  );
+              final groups = _buildLibraryGroups();
 
               return ListView(
                 physics: const BouncingScrollPhysics(),
@@ -208,7 +205,7 @@ class _CartLibrarySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final activeLibraryId = controller.selectedLibraryId;
+      final activeLibraryId = controller.selectedBranchId;
       final isLockedByOtherLibrary =
           activeLibraryId != null && activeLibraryId != group.libraryId;
 
@@ -245,13 +242,13 @@ class _CartLibrarySection extends StatelessWidget {
             if (isLockedByOtherLibrary)
               _CartLibraryLockedBanner(
                 activeLibraryName:
-                    controller.selectedLibraryName ?? 'perpustakaan lain',
+                    controller.selectedBranchName ?? 'perpustakaan lain',
               ),
             ...List.generate(group.items.length, (index) {
               final item = group.items[index];
-              final isChecked = controller.checkedBookIds.contains(item.id);
+              final isChecked = controller.checkedItemIds.contains(item.id);
               final isDisabledByLibrary =
-                  controller.isBookDisabledByLibraryRule(item.id);
+                  controller.isItemDisabledByBranchRule(item.id);
 
               return _SwipeDeleteCartItem(
                 key: ValueKey(item.id),
@@ -259,7 +256,7 @@ class _CartLibrarySection extends StatelessWidget {
                 isFirst: index == 0,
                 isDisabledByLibrary: isDisabledByLibrary,
                 confirmDelete: () => onDeleteRequested(item),
-                onDeleted: () => controller.removeBook(item.id),
+                onDeleted: () => controller.removeItem(item.id),
                 child: Opacity(
                   opacity: isDisabledByLibrary ? 0.48 : 1,
                   child: LibraryCartBookTile(
@@ -268,10 +265,10 @@ class _CartLibrarySection extends StatelessWidget {
                     showCheckbox: true,
                     showDeleteButton: true,
                     onTap: () {
-                      controller.toggleBookCheckedWithLibraryRule(item.id);
+                      controller.toggleItemChecked(item.id);
                     },
                     onCheckedChanged: (_) {
-                      controller.toggleBookCheckedWithLibraryRule(item.id);
+                      controller.toggleItemChecked(item.id);
                     },
                     onDeleteTap: () => onDeleteTap(item),
                   ),
@@ -298,10 +295,12 @@ class _CartLibraryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final checkedCount = controller.checkedCountForLibrary(group.libraryId);
-    final availableCount = controller.availableCountForLibrary(group.libraryId);
+    final checkedCount = group.items
+        .where((i) => i.isAvailable && controller.checkedItemIds.contains(i.id))
+        .length;
+    final availableCount = group.items.where((i) => i.isAvailable).length;
     final isAllChecked =
-        controller.isAllAvailableCheckedForLibrary(group.libraryId);
+        controller.isAllAvailableCheckedForBranch(group.libraryId);
 
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -322,7 +321,7 @@ class _CartLibraryHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(LuminaRadius.sm),
             ),
             onChanged: (_) {
-              controller.toggleSelectAllAvailableForLibrary(group.libraryId);
+              controller.toggleSelectAllAvailableForBranch(group.libraryId);
             },
           ),
           Container(
@@ -528,7 +527,7 @@ class _CartBottomAction extends StatelessWidget {
           ),
           child: Obx(() {
             final count = controller.checkedCount;
-            final selectedLibraryName = controller.selectedLibraryName;
+            final selectedLibraryName = controller.selectedBranchName;
 
             return Column(
               mainAxisSize: MainAxisSize.min,

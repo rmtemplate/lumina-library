@@ -5,16 +5,18 @@ import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/library_location/library_location_detail_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/catalog/library_book_detail_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/library_location/library_route_map_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/search/library_search_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/catalog/library_trending_book_card.dart';
-import 'package:lumina_library/features/mahasiswa/presentation/widgets/library_location/library_nearby_library_slider.dart';
-import 'package:lumina_library/shared/models/book/library_book_model.dart';
+import 'package:lumina_library/shared/models/book/book_model.dart';
 import 'package:lumina_library/shared/models/library/library_branch_model.dart';
+import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
+import 'package:lumina_library/shared/widgets/skeleton/lumina_skeleton.dart';
 
-class LibraryNearbyLibraryDetailPage extends StatelessWidget {
+class LibraryNearbyLibraryDetailPage extends StatefulWidget {
   const LibraryNearbyLibraryDetailPage({
     super.key,
     this.library,
@@ -22,7 +24,8 @@ class LibraryNearbyLibraryDetailPage extends StatelessWidget {
 
   final LibraryNearbyLibraryData? library;
 
-  static const LibraryNearbyLibraryData _fallbackLibrary = LibraryNearbyLibraryData(
+  static const LibraryNearbyLibraryData _fallbackLibrary =
+      LibraryNearbyLibraryData(
     id: 'lib-central',
     name: 'Lumina Library - Central',
     address: 'Jl. Pendidikan No. 12, Kampus Utama',
@@ -37,52 +40,31 @@ class LibraryNearbyLibraryDetailPage extends StatelessWidget {
     longitude: 106.816666,
   );
 
-  static const List<LibraryBookModel> _books = [
-    LibraryBookModel(
-      title: 'The Design of Everyday Things',
-      author: 'Don Norman',
-      rating: '4.8',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuDMX4YVcC_-UVaul5kGV68fPcdv03_iB8G9MwL03eMXwbXzpo-ewRHxZPlp6j2Vo_CbfgSFj_SmTLS-0DkDN5ckEeM0V6BAJGcSk6yIomAcKS_6mOdD9qoSAtOD_Zdf7V5BXPsNWo3N8x7ThhdsdgijBQ4UnD855facLmSD3_fcyEthbA5og9aqWPV-xwr43zlGNA9sztcElcZmOBDfsnqt7vKbl-2dWLzUf0MXluMVG5vduUadipe5c_JaHy7rUugHUBWEscfarqIA',
-      isAvailable: true,
-      stockText: 'Tersedia: 3',
-    ),
-    LibraryBookModel(
-      title: 'Introduction to Algorithms',
-      author: 'Thomas H. Cormen',
-      rating: '4.7',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuAoj4Z8IoRSbMHxcHtyF5zv-vftPDK9cEmIt5CWpIbIFF8FfnDsdsfP2nupFnCUXvVFO0sGmQMrS54Pl5r3bcrbX99lI6PlUkykcO4_Oy5osY70WvrPRu1-n4mm-8QPO8-_-MryX6sBF6WTpzN2CKv2qRPml7NF3AHYHAo8ztQeeI3blkxqWgZbKDPMbJHL5Oo6VagMzspuZHBK5eRcUxU9ec9PvU7LyrOKGPxx6enE-rZYQlaFdH3n9XA22wcQT2t2PuZLIT8TtLIU',
-      isAvailable: false,
-      stockText: 'Dipinjam',
-    ),
-    LibraryBookModel(
-      title: 'Clean Architecture',
-      author: 'Robert C. Martin',
-      rating: '4.9',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuAuLblMAj5-Sc853TMVBkmebmIs-PlqkXA2dmSvr6np_PuAApRlgf0J9jxiwcJG-BsSUs9oKsn9ksyb3dfmzQtUydS6lc_1Emw_aOukz22O2jzIOC5ET0JGAZPFPxzTDSKEO6OxtFcm8Y1QzTh_5wPP2qQnP16DxscNnWv0X2BEi3lbQy24UysKZ_Nlcp3o9laV40glwhEHh3O_B_WOOlWdZaJyeJ0CcHF3IAk6jCbHn4pSCtzT110s7C5aIff8AVMeosutYK3qGFaj',
-      isAvailable: true,
-      stockText: 'Tersedia: 5',
-    ),
-    LibraryBookModel(
-      title: 'Sapiens',
-      author: 'Yuval Noah Harari',
-      rating: '4.9',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuAOGdF3QY5G89jhgdZoszYTVtgwR3oxR_MjOcbuc9zoWw-ykYzpq2GdDFwhRsEmV6I6fcwVxAKt3mlKBT8EzWVNGGm3Oa33rYDpFZstTXu_npFRx8Nu7h8b_mqoxj66VbH6Jf8JfD6LCfAdFF0nR8LonDJqbUPoGhwdZhDjlXMbFuZqCvC6KZy6AtDhrCu-vgkdYnqpqsXXy4gAgNc54k6dPS7OsMAZuIdjGaslY26YvCIMaaWv4nK6tkq3NoRi6meFwbrhSHY_t2w8',
-      isAvailable: true,
-      stockText: 'Tersedia: 2',
-    ),
-  ];
+  @override
+  State<LibraryNearbyLibraryDetailPage> createState() =>
+      _LibraryNearbyLibraryDetailPageState();
+}
 
-  LibraryLocationDetailController get controller => Get.isRegistered<LibraryLocationDetailController>()
-      ? Get.find<LibraryLocationDetailController>()
-      : Get.put(LibraryLocationDetailController(), permanent: true);
+class _LibraryNearbyLibraryDetailPageState
+    extends State<LibraryNearbyLibraryDetailPage> {
+  LibraryLocationDetailController get controller =>
+      Get.isRegistered<LibraryLocationDetailController>()
+          ? Get.find<LibraryLocationDetailController>()
+          : Get.put(LibraryLocationDetailController(), permanent: true);
 
-  LibraryNearbyLibraryData get currentLibrary => library ?? _fallbackLibrary;
+  LibraryNearbyLibraryData get currentLibrary =>
+      widget.library ?? LibraryNearbyLibraryDetailPage._fallbackLibrary;
 
-  void _goToBookDetail() {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller.loadBranchBooks(currentLibrary.id);
+    });
+  }
+
+  void _goToBookDetail(BookModel book) {
+    Get.find<LibraryBookDetailController>().setBook(book);
     Get.to(
       () => const LibraryBookDetailPage(),
       transition: Transition.cupertino,
@@ -104,14 +86,7 @@ class LibraryNearbyLibraryDetailPage extends StatelessWidget {
     final longitude = selectedLibrary.longitude;
 
     if (latitude == null || longitude == null) {
-      Get.snackbar(
-        'Lokasi tidak tersedia',
-        'Koordinat perpustakaan belum tersedia.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(LuminaSpacing.marginMobile),
-        backgroundColor: LuminaColors.errorContainer,
-        colorText: LuminaColors.onErrorContainer,
-      );
+      LuminaToast.warning('Koordinat perpustakaan belum tersedia.');
       return;
     }
 
@@ -162,14 +137,20 @@ class LibraryNearbyLibraryDetailPage extends StatelessWidget {
                     const _LibraryInfoGrid(),
                     const SizedBox(height: LuminaSpacing.xl),
                     _LibraryBookSectionHeader(
-                      totalBooks: _books.length,
+                      totalBooks: detailController.branchBooks.length,
                       onSearchTap: () => _goToSearchPage(selectedLibrary),
                     ),
                     const SizedBox(height: LuminaSpacing.md),
-                    _LibraryBookGrid(
-                      books: _books,
-                      onBookTap: _goToBookDetail,
-                    ),
+                    if (detailController.isLoadingBooks.value)
+                      const Padding(
+                        padding: EdgeInsets.only(top: LuminaSpacing.sm),
+                        child: LuminaCatalogBookGridSkeleton(count: 6),
+                      )
+                    else
+                      _LibraryBookGrid(
+                        books: detailController.branchBooks.toList(),
+                        onBookTap: _goToBookDetail,
+                      ),
                   ],
                 ),
               ),
@@ -835,11 +816,25 @@ class _LibraryBookGrid extends StatelessWidget {
     required this.onBookTap,
   });
 
-  final List<LibraryBookModel> books;
-  final VoidCallback onBookTap;
+  final List<BookModel> books;
+  final ValueChanged<BookModel> onBookTap;
 
   @override
   Widget build(BuildContext context) {
+    if (books.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: LuminaSpacing.xl),
+        child: Center(
+          child: Text(
+            'Belum ada koleksi di cabang ini.',
+            style: LuminaTextStyles.bodyMd.copyWith(
+              color: LuminaColors.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         const spacing = LuminaSpacing.md;
@@ -852,21 +847,24 @@ class _LibraryBookGrid extends StatelessWidget {
           spacing: spacing,
           runSpacing: spacing,
           children: books.map((book) {
+            final stockText = book.isAvailable
+                ? 'Tersedia: ${book.availability.availableItems}'
+                : 'Dipinjam';
             return LibraryTrendingBookCard(
               width: cardWidth,
               title: book.title,
               author: book.author,
-              rating: book.rating,
-              imageUrl: book.imageUrl,
+              rating: book.ratingLabel,
+              imageUrl: book.coverUrl ?? '',
               isAvailable: book.isAvailable,
               showRatingBadge: false,
               showInlineRating: true,
               showBorrowButton: false,
               showAvailabilityStatus: true,
-              dimUnavailableCover: true,
-              availableStatusLabel: book.stockText,
-              unavailableStatusLabel: book.stockText,
-              onTap: onBookTap,
+              dimUnavailableCover: false,
+              availableStatusLabel: stockText,
+              unavailableStatusLabel: stockText,
+              onTap: () => onBookTap(book),
             );
           }).toList(),
         );

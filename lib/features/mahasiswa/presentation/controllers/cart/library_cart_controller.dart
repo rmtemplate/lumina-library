@@ -1,185 +1,170 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
-import 'package:lumina_library/shared/models/book/cart_book_model.dart';
+import 'package:lumina_library/core/network/lumina_api_exception.dart';
+import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
+import 'package:lumina_library/shared/models/borrowing/checkout_result_model.dart';
+import 'package:lumina_library/shared/models/cart/cart_model.dart';
+import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
 
 class LibraryCartController extends GetxController {
   static const int maxBorrowDays = 14;
 
-  final RxList<LibraryCartBook> cartItems = <LibraryCartBook>[
-    const LibraryCartBook(
-      id: 'book-clean-code',
-      title: 'Clean Code',
-      author: 'Robert C. Martin',
-      isAvailable: true,
-      libraryId: 'lib-central',
-      libraryName: 'Perpustakaan Pusat Kampus',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCjEA70cTqnppASeqZK2teqNXmlGiA6iO3o5CzXTzDHhkwwSsBApz43TNsLfq5D9l4JRclzaJmAJH6GzQkTMHEMb2f1t2J4M897NfjIf01rWDsgcTYYMJD_SVs8x5OLALbq7l-wxVmIh2fz-rAwiXAFyLnLE5h_P2HiC-jFt51z7dtqIQqYr5bvcValaXN939BjTYO09S4syh7KXN0siI7yXd12f98i-E8n4k6uYjKiXaZ4g4xhlbDXU8sRQdUNuU3eMbtBF-1TuInE',
-    ),
-    const LibraryCartBook(
-      id: 'book-design-everyday',
-      title: 'The Design of Everyday Things',
-      author: 'Don Norman',
-      isAvailable: true,
-      libraryId: 'lib-central',
-      libraryName: 'Perpustakaan Pusat Kampus',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuBHKRu2AsQKC7EiivPJpTyRtkfn4O3_lBWnrRZK1bpZ8W0g_KBJV9kKpHXSTXvIj0DuK1ykqr088qGMYfVeM5F_EZ49_LNeSlmVB9rx043jDcCdMSpgZtCcHZYXyAH3Ol1sjxyB9C4H4ZlmSt989OpFUUeHLEOouA25Ircoh47YUvKTRWU3kEeRy783N8rjJgbs40a5mXuzLjsNATPKjhq8moDdq1w8h1wHlHlkWY6i3oAfhXWmgQT3HMZQpyzHyM7mdhKCUpGUNvtS',
-    ),
-    const LibraryCartBook(
-      id: 'book-design-systems',
-      title: 'Design Systems',
-      author: 'Alla Kholmatova',
-      isAvailable: true,
-      libraryId: 'lib-tech',
-      libraryName: 'Perpustakaan Fakultas Teknologi',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCt8a67IlFBQerwKB0PDjSrQqdKJUed0gyR2ZarTsUSc78sYeA379SWhrUc7hRyDx1RJeGUK962FN_F3tbt8GBEEWlZJN_XW0Q01A6dw-ejSZAtCJqUKj6yUSiDpVY7pSYOlS_luWY-DHPCKld-N7WqwgKNIPa4D4i0e15or1UaTXqfs2bZEWKAxDxvxo_sOOP_NGyFGDktxxJIFr8xvDTcEmjTdydcL4pEhJ1ftDE50__9pvTV0ppdOdfxWnGTHLehz0Yqta9YmavH',
-    ),
-    const LibraryCartBook(
-      id: 'book-sapiens',
-      title: 'Sapiens',
-      author: 'Yuval Noah Harari',
-      isAvailable: true,
-      libraryId: 'lib-journal',
-      libraryName: 'Ruang Jurnal & Referensi',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuAOGdF3QY5G89jhgdZoszYTVtgwR3oxR_MjOcbuc9zoWw-ykYzpq2GdDFwhRsEmV6I6fcwVxAKt3mlKBT8EzWVNGGm3Oa33rYDpFZstTXu_npFRx8Nu7h8b_mqoxj66VbH6Jf8JfD6LCfAdFF0nR8LonDJqbUPoGhwdZhDjlXMbFuZqCvC6KZy6AtDhrCu-vgkdYnqpqsXXy4gAgNc54k6dPS7OsMAZuIdjGaslY26YvCIMaaWv4nK6tkq3NoRi6meFwbrhSHY_t2w8',
-    ),
-    const LibraryCartBook(
-      id: 'book-intro-algorithms',
-      title: 'Introduction to Algorithms',
-      author: 'Thomas H. Cormen',
-      isAvailable: false,
-      libraryId: 'lib-tech',
-      libraryName: 'Perpustakaan Fakultas Teknologi',
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuAoj4Z8IoRSbMHxcHtyF5zv-vftPDK9cEmIt5CWpIbIFF8FfnDsdsfP2nupFnCUXvVFO0sGmQMrS54Pl5r3bcrbX99lI6PlUkykcO4_Oy5osY70WvrPRu1-n4mm-8QPO8-_-MryX6sBF6WTpzN2CKv2qRPml7NF3AHYHAo8ztQeeI3blkxqWgZbKDPMbJHL5Oo6VagMzspuZHBK5eRcUxU9ec9PvU7LyrOKGPxx6enE-rZYQlaFdH3n9XA22wcQT2t2PuZLIT8TtLIU',
-    ),
-  ].obs;
+  final RxBool isLoading = false.obs;
+  final RxBool isCheckoutLoading = false.obs;
+  final RxString errorMessage = ''.obs;
 
-  final RxSet<String> checkedBookIds = <String>{
-    'book-clean-code',
-    'book-design-everyday',
-  }.obs;
+  final Rx<CartModel> cart = CartModel.empty().obs;
+  final RxSet<String> checkedItemIds = <String>{}.obs;
 
   final Rx<DateTime> borrowDate = DateTime.now().obs;
   final Rx<DateTime> returnDate =
       DateTime.now().add(const Duration(days: maxBorrowDays)).obs;
 
-  LibraryCartBook? _findBookById(String bookId) {
-    for (final item in cartItems) {
-      if (item.id == bookId) return item;
-    }
-
-    return null;
+  @override
+  void onInit() {
+    super.onInit();
+    loadCart();
   }
 
-  List<LibraryCartBook> get checkedItems {
-    return cartItems.where((item) {
-      return item.isAvailable && checkedBookIds.contains(item.id);
+  // ── Computed ───────────────────────────────────────────────────────────────
+
+  List<CartItemModel> get allItems => cart.value.allItems;
+
+  List<CartGroupModel> get groups => cart.value.groups;
+
+  bool get hasItems => allItems.isNotEmpty;
+
+  List<CartItemModel> get checkedItems {
+    return allItems.where((item) {
+      return item.isAvailable && checkedItemIds.contains(item.id);
     }).toList(growable: false);
   }
 
   int get checkedCount => checkedItems.length;
 
-  int get availableCount {
-    return cartItems.where((item) => item.isAvailable).length;
-  }
-
-  bool get hasItems => cartItems.isNotEmpty;
+  int get availableCount => allItems.where((i) => i.isAvailable).length;
 
   bool get hasCheckedItems => checkedCount > 0;
 
-  String? get selectedLibraryId {
+  String? get selectedBranchId {
     if (checkedItems.isEmpty) return null;
-
-    return checkedItems.first.libraryId;
+    return checkedItems.first.branchId;
   }
 
-  String? get selectedLibraryName {
+  String? get selectedBranchName {
     if (checkedItems.isEmpty) return null;
-
-    return checkedItems.first.libraryName;
+    return checkedItems.first.branchName;
   }
 
   bool get isAllAvailableChecked {
-    final activeLibraryId = selectedLibraryId;
-
-    if (activeLibraryId == null || activeLibraryId.isEmpty) {
-      return false;
-    }
-
-    return isAllAvailableCheckedForLibrary(activeLibraryId);
+    final branchId = selectedBranchId;
+    if (branchId == null || branchId.isEmpty) return false;
+    return isAllAvailableCheckedForBranch(branchId);
   }
 
-  bool canSelectLibrary(String libraryId) {
-    final activeLibraryId = selectedLibraryId;
-
-    if (activeLibraryId == null || activeLibraryId.isEmpty) return true;
-
-    return activeLibraryId == libraryId;
+  bool canSelectBranch(String branchId) {
+    final active = selectedBranchId;
+    if (active == null || active.isEmpty) return true;
+    return active == branchId;
   }
 
-  bool isBookDisabledByLibraryRule(String bookId) {
-    final item = _findBookById(bookId);
-
+  bool isItemDisabledByBranchRule(String itemId) {
+    final item = _findItemById(itemId);
     if (item == null) return true;
     if (!item.isAvailable) return true;
-    if (checkedBookIds.contains(item.id)) return false;
-
-    return !canSelectLibrary(item.libraryId);
+    if (checkedItemIds.contains(item.id)) return false;
+    return !canSelectBranch(item.branchId);
   }
 
-  int availableCountForLibrary(String libraryId) {
-    return cartItems.where((item) {
-      return item.libraryId == libraryId && item.isAvailable;
-    }).length;
+  bool isAllAvailableCheckedForBranch(String branchId) {
+    final available = allItems.where((i) => i.branchId == branchId && i.isAvailable).toList();
+    if (available.isEmpty) return false;
+    return available.every((i) => checkedItemIds.contains(i.id));
   }
 
-  int checkedCountForLibrary(String libraryId) {
-    return cartItems.where((item) {
-      return item.libraryId == libraryId && checkedBookIds.contains(item.id);
-    }).length;
-  }
-
-  bool isAllAvailableCheckedForLibrary(String libraryId) {
-    final availableItems = cartItems.where((item) {
-      return item.libraryId == libraryId && item.isAvailable;
-    }).toList(growable: false);
-
-    if (availableItems.isEmpty) return false;
-
-    return availableItems.every((item) {
-      return checkedBookIds.contains(item.id);
-    });
-  }
-
-  DateTime get latestReturnDate {
-    return DateUtils.dateOnly(
-      borrowDate.value.add(const Duration(days: maxBorrowDays)),
-    );
-  }
+  DateTime get latestReturnDate =>
+      DateUtils.dateOnly(borrowDate.value.add(const Duration(days: maxBorrowDays)));
 
   int get borrowDurationDays {
     final start = DateUtils.dateOnly(borrowDate.value);
     final end = DateUtils.dateOnly(returnDate.value);
-
     return end.difference(start).inDays;
   }
 
-  bool get isBorrowRangeValid {
-    return borrowDurationDays > 0 && borrowDurationDays <= maxBorrowDays;
+  bool get isBorrowRangeValid =>
+      borrowDurationDays > 0 && borrowDurationDays <= maxBorrowDays;
+
+  // ── API ────────────────────────────────────────────────────────────────────
+
+  Future<void> loadCart() async {
+    isLoading.value = true;
+    errorMessage.value = '';
+
+    try {
+      final service = Get.find<HomeApiService>();
+      cart.value = await service.getCart();
+    } on LuminaApiException catch (e) {
+      errorMessage.value = e.displayMessage;
+    } catch (_) {
+      errorMessage.value = 'Gagal memuat keranjang.';
+    } finally {
+      isLoading.value = false;
+    }
   }
 
-  void toggleBookChecked(String bookId) {
-    toggleBookCheckedWithLibraryRule(bookId);
+  Future<bool> addBook({required String bookId, required String branchId}) async {
+    try {
+      final service = Get.find<HomeApiService>();
+      cart.value = await service.addCartItem(bookId: bookId, branchId: branchId);
+      LuminaToast.success('Buku berhasil ditambahkan ke keranjang.');
+      return true;
+    } on LuminaApiException catch (e) {
+      LuminaToast.error(e.displayMessage);
+      return false;
+    } catch (_) {
+      LuminaToast.error('Gagal menambahkan buku ke keranjang.');
+      return false;
+    }
   }
 
-  void toggleBookCheckedWithLibraryRule(String bookId) {
-    final item = _findBookById(bookId);
+  Future<void> removeItem(String cartItemId) async {
+    final prevCart = cart.value;
+    // Optimistic remove
+    final newGroups = prevCart.groups
+        .map((g) => CartGroupModel(
+              branch: g.branch,
+              items: g.items.where((i) => i.id != cartItemId).toList(),
+              itemsCount: g.items.where((i) => i.id != cartItemId).length,
+            ))
+        .where((g) => g.items.isNotEmpty)
+        .toList();
+    cart.value = CartModel(
+      id: prevCart.id,
+      groups: newGroups,
+      totalItems: prevCart.totalItems - 1,
+      totalBranches: newGroups.length,
+    );
+    checkedItemIds.remove(cartItemId);
+    checkedItemIds.refresh();
 
+    try {
+      await Get.find<HomeApiService>().removeCartItem(cartItemId);
+    } on LuminaApiException catch (_) {
+      cart.value = prevCart;
+    } catch (_) {
+      cart.value = prevCart;
+    }
+  }
+
+  bool isBookInCart(String bookId) {
+    return allItems.any((i) => i.bookId == bookId);
+  }
+
+  // ── Selection ──────────────────────────────────────────────────────────────
+
+  void toggleItemChecked(String itemId) {
+    final item = _findItemById(itemId);
     if (item == null) return;
 
     if (!item.isAvailable) {
@@ -187,122 +172,64 @@ class LibraryCartController extends GetxController {
       return;
     }
 
-    final isAlreadyChecked = checkedBookIds.contains(item.id);
-
-    if (isAlreadyChecked) {
-      checkedBookIds.remove(item.id);
-      checkedBookIds.refresh();
+    if (checkedItemIds.contains(item.id)) {
+      checkedItemIds.remove(item.id);
+      checkedItemIds.refresh();
       return;
     }
 
-    final activeLibraryId = selectedLibraryId;
-
-    if (activeLibraryId != null &&
-        activeLibraryId.isNotEmpty &&
-        activeLibraryId != item.libraryId) {
-      showDifferentLibraryWarning(
-        activeLibraryName: selectedLibraryName ?? 'perpustakaan lain',
-        targetLibraryName: item.libraryName,
+    final activeBranch = selectedBranchId;
+    if (activeBranch != null && activeBranch.isNotEmpty && activeBranch != item.branchId) {
+      showDifferentBranchWarning(
+        activeBranchName: selectedBranchName ?? 'perpustakaan lain',
+        targetBranchName: item.branchName,
       );
       return;
     }
 
-    checkedBookIds.add(item.id);
-    checkedBookIds.refresh();
+    checkedItemIds.add(item.id);
+    checkedItemIds.refresh();
   }
 
   void toggleSelectAllAvailable() {
-    final activeLibraryId = selectedLibraryId;
-
-    if (activeLibraryId != null && activeLibraryId.isNotEmpty) {
-      toggleSelectAllAvailableForLibrary(activeLibraryId);
+    final activeBranch = selectedBranchId;
+    if (activeBranch != null && activeBranch.isNotEmpty) {
+      toggleSelectAllAvailableForBranch(activeBranch);
       return;
     }
-
-    final firstAvailableItem = cartItems.firstWhereOrNull(
-      (item) => item.isAvailable,
-    );
-
-    if (firstAvailableItem == null) return;
-
-    toggleSelectAllAvailableForLibrary(firstAvailableItem.libraryId);
+    final firstAvail = allItems.firstWhereOrNull((i) => i.isAvailable);
+    if (firstAvail == null) return;
+    toggleSelectAllAvailableForBranch(firstAvail.branchId);
   }
 
-  void toggleSelectAllAvailableForLibrary(String libraryId) {
-    final availableItems = cartItems.where((item) {
-      return item.libraryId == libraryId && item.isAvailable;
-    }).toList(growable: false);
+  void toggleSelectAllAvailableForBranch(String branchId) {
+    final available = allItems.where((i) => i.branchId == branchId && i.isAvailable).toList();
+    if (available.isEmpty) return;
 
-    if (availableItems.isEmpty) return;
-
-    final targetLibraryName = availableItems.first.libraryName;
-    final activeLibraryId = selectedLibraryId;
-
-    if (activeLibraryId != null &&
-        activeLibraryId.isNotEmpty &&
-        activeLibraryId != libraryId) {
-      showDifferentLibraryWarning(
-        activeLibraryName: selectedLibraryName ?? 'perpustakaan lain',
-        targetLibraryName: targetLibraryName,
+    final activeBranch = selectedBranchId;
+    if (activeBranch != null && activeBranch.isNotEmpty && activeBranch != branchId) {
+      showDifferentBranchWarning(
+        activeBranchName: selectedBranchName ?? 'perpustakaan lain',
+        targetBranchName: available.first.branchName,
       );
       return;
     }
 
-    final isAllChecked = availableItems.every((item) {
-      return checkedBookIds.contains(item.id);
-    });
-
-    if (isAllChecked) {
-      for (final item in availableItems) {
-        checkedBookIds.remove(item.id);
-      }
-
-      checkedBookIds.refresh();
-      return;
+    final allChecked = available.every((i) => checkedItemIds.contains(i.id));
+    if (allChecked) {
+      for (final i in available) checkedItemIds.remove(i.id);
+    } else {
+      for (final i in available) checkedItemIds.add(i.id);
     }
-
-    for (final item in availableItems) {
-      checkedBookIds.add(item.id);
-    }
-
-    checkedBookIds.refresh();
-  }
-
-  void removeBook(String bookId) {
-    cartItems.removeWhere((item) => item.id == bookId);
-    checkedBookIds.remove(bookId);
-    checkedBookIds.refresh();
+    checkedItemIds.refresh();
   }
 
   void clearCheckedItems() {
-    checkedBookIds.clear();
-    checkedBookIds.refresh();
+    checkedItemIds.clear();
+    checkedItemIds.refresh();
   }
 
-  void removeCheckedItems() {
-    final ids = checkedBookIds.toSet();
-
-    cartItems.removeWhere((item) => ids.contains(item.id));
-    checkedBookIds.clear();
-    checkedBookIds.refresh();
-  }
-
-  void addBook(LibraryCartBook book) {
-    final existingIndex = cartItems.indexWhere((item) => item.id == book.id);
-
-    if (existingIndex >= 0) {
-      Get.snackbar(
-        'Buku Sudah Ada',
-        '${book.title} sudah ada di keranjang.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      );
-      return;
-    }
-
-    cartItems.add(book);
-  }
+  // ── Date ──────────────────────────────────────────────────────────────────
 
   Future<void> pickBorrowDateRange(BuildContext context) async {
     final initialStart = DateUtils.dateOnly(borrowDate.value);
@@ -310,12 +237,8 @@ class LibraryCartController extends GetxController {
 
     final selectedRange = await showDateRangePicker(
       context: context,
-      firstDate: DateUtils.dateOnly(
-        DateTime.now().subtract(const Duration(days: 1)),
-      ),
-      lastDate: DateUtils.dateOnly(
-        DateTime.now().add(const Duration(days: 365)),
-      ),
+      firstDate: DateUtils.dateOnly(DateTime.now().subtract(const Duration(days: 1))),
+      lastDate: DateUtils.dateOnly(DateTime.now().add(const Duration(days: 365))),
       initialDateRange: DateTimeRange(
         start: initialStart,
         end: initialEnd.isAfter(initialStart)
@@ -350,87 +273,108 @@ class LibraryCartController extends GetxController {
 
     if (duration <= 0) {
       returnDate.value = start.add(const Duration(days: 1));
-      Get.snackbar(
-        'Tanggal Tidak Valid',
-        'Tanggal pengembalian harus setelah tanggal pinjam.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      );
+      LuminaToast.warning('Tanggal pengembalian harus setelah tanggal pinjam.');
       return;
     }
 
     if (duration > maxBorrowDays) {
       returnDate.value = start.add(const Duration(days: maxBorrowDays));
-      Get.snackbar(
-        'Durasi Disesuaikan',
-        'Durasi maksimal peminjaman adalah $maxBorrowDays hari. Tanggal kembali otomatis disesuaikan.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 3),
-      );
+      LuminaToast.warning('Durasi maksimal peminjaman adalah $maxBorrowDays hari.');
       return;
     }
 
     returnDate.value = end;
   }
 
-  void showNoCheckedWarning() {
-    Get.snackbar(
-      'Pilih Buku',
-      'Centang minimal satu buku untuk lanjut ke checkout.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 2),
-    );
-  }
-
-  void showUnavailableBookWarning() {
-    Get.snackbar(
-      'Buku Tidak Tersedia',
-      'Buku ini sedang tidak tersedia untuk dipinjam.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 2),
-    );
-  }
-
-  void showDifferentLibraryWarning({
-    required String activeLibraryName,
-    required String targetLibraryName,
-  }) {
-    Get.snackbar(
-      'Tidak bisa memilih dari 2 perpustakaan',
-      'Anda sudah memilih buku dari $activeLibraryName. Hapus pilihan tersebut jika ingin memilih dari $targetLibraryName.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(milliseconds: 2600),
-    );
-  }
-
-  void confirmBorrowing() {
+  /// Kirim request checkout ke API.
+  /// Navigasi ke halaman sukses dilakukan dari [LibraryCheckoutPage]
+  /// setelah future ini selesai (returns [CheckoutResultModel] atau null).
+  Future<CheckoutResultModel?> confirmBorrowing() async {
     if (!hasCheckedItems) {
       showNoCheckedWarning();
-      return;
+      return null;
     }
 
     if (!isBorrowRangeValid) {
-      Get.snackbar(
-        'Periode Tidak Valid',
-        'Pastikan durasi peminjaman tidak lebih dari $maxBorrowDays hari.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      );
-      return;
+      LuminaToast.warning('Pastikan durasi peminjaman tidak lebih dari $maxBorrowDays hari.');
+      return null;
     }
 
-    Get.snackbar(
-      'Berhasil',
-      'Pengajuan peminjaman $checkedCount buku dari ${selectedLibraryName ?? 'perpustakaan'} berhasil dibuat.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 2),
+    final branchId = selectedBranchId;
+    if (branchId == null || branchId.isEmpty) {
+      LuminaToast.warning('Perpustakaan tidak terdeteksi. Pilih ulang buku dari keranjang.');
+      return null;
+    }
+
+    isCheckoutLoading.value = true;
+
+    try {
+      final service = Get.find<HomeApiService>();
+      final result = await service.checkout(
+        branchId: branchId,
+        cartItemIds: checkedItems.map((i) => i.id).toList(),
+        startDate: DateUtils.dateOnly(borrowDate.value),
+        endDate: DateUtils.dateOnly(returnDate.value),
+      );
+
+      // Hapus item yang sudah di-checkout dari state lokal
+      final checkedIds = checkedItemIds.toSet();
+      final newGroups = cart.value.groups
+          .map((g) => CartGroupModel(
+                branch: g.branch,
+                items: g.items.where((i) => !checkedIds.contains(i.id)).toList(),
+                itemsCount: g.items.where((i) => !checkedIds.contains(i.id)).length,
+              ))
+          .where((g) => g.items.isNotEmpty)
+          .toList();
+
+      cart.value = CartModel(
+        id: cart.value.id,
+        groups: newGroups,
+        totalItems: newGroups.fold(0, (sum, g) => sum + g.itemsCount),
+        totalBranches: newGroups.length,
+      );
+      checkedItemIds.clear();
+      checkedItemIds.refresh();
+
+      return result;
+    } on LuminaApiException catch (e) {
+      LuminaToast.error(e.displayMessage);
+      return null;
+    } catch (_) {
+      LuminaToast.error('Checkout gagal. Silakan coba lagi.');
+      return null;
+    } finally {
+      isCheckoutLoading.value = false;
+    }
+  }
+
+  // ── Warnings ───────────────────────────────────────────────────────────────
+
+  void showNoCheckedWarning() {
+    LuminaToast.warning('Centang minimal satu buku untuk lanjut ke checkout.');
+  }
+
+  void showUnavailableBookWarning() {
+    LuminaToast.warning('Buku ini sedang tidak tersedia untuk dipinjam.');
+  }
+
+  void showDifferentBranchWarning({
+    required String activeBranchName,
+    required String targetBranchName,
+  }) {
+    LuminaToast.warning(
+      'Anda sudah memilih buku dari $activeBranchName. Hapus pilihan tersebut jika ingin memilih dari $targetBranchName.',
+      duration: const Duration(milliseconds: 3000),
     );
+  }
+
+  // ── Private ────────────────────────────────────────────────────────────────
+
+  CartItemModel? _findItemById(String id) {
+    for (final item in allItems) {
+      if (item.id == id) return item;
+    }
+    return null;
   }
 }

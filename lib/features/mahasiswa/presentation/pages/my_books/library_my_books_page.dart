@@ -129,7 +129,7 @@ class _LibraryMyBooksPageState extends State<LibraryMyBooksPage> {
                       const SizedBox(height: LuminaSpacing.md),
 
                       // Book list
-                      if (books.isEmpty && !c.isLoadingMore.value)
+                      if (books.isEmpty && !c.isLoadingMore.value && !c.isRefreshing.value)
                         const _MyBooksEmptyState()
                       else
                         ...books.asMap().entries.map((e) {

@@ -9,8 +9,10 @@ import 'package:lumina_library/features/mahasiswa/presentation/controllers/catal
 import 'package:lumina_library/features/mahasiswa/presentation/pages/cart/library_cart_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/catalog/library_book_detail_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/search/library_search_page.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/catalog/library_trending_book_card.dart';
-import 'package:lumina_library/shared/models/book/catalog_book_model.dart';
+import 'package:lumina_library/shared/models/book/book_model.dart';
+import 'package:lumina_library/shared/widgets/skeleton/lumina_skeleton.dart';
 
 class LibraryCatalogPage extends StatefulWidget {
   const LibraryCatalogPage({
@@ -66,7 +68,8 @@ class _LibraryCatalogPageState extends State<LibraryCatalogPage> {
     controller.setCategoryFilter(categoryKey.trim());
   }
 
-  void _handleBookTap(CatalogBookModel book) {
+  void _handleBookTap(BookModel book) {
+    Get.find<LibraryBookDetailController>().setBook(book);
     Get.to(
       () => const LibraryBookDetailPage(),
       transition: Transition.cupertino,
@@ -121,6 +124,27 @@ class _LibraryCatalogPageState extends State<LibraryCatalogPage> {
           Expanded(
             child: Obx(
               () {
+                if (catalogController.isLoading.value) {
+                  return SingleChildScrollView(
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(
+                      LuminaSpacing.marginMobile,
+                      LuminaSpacing.md,
+                      LuminaSpacing.marginMobile,
+                      LuminaSpacing.xl,
+                    ),
+                    child: const LuminaCatalogBookGridSkeleton(count: 6),
+                  );
+                }
+
+                if (catalogController.errorMessage.value.isNotEmpty &&
+                    catalogController.books.isEmpty) {
+                  return _CatalogErrorState(
+                    message: catalogController.errorMessage.value,
+                    onRetry: catalogController.loadBooks,
+                  );
+                }
+
                 final books = catalogController.filteredBooks;
 
                 return CustomScrollView(
@@ -139,11 +163,10 @@ class _LibraryCatalogPageState extends State<LibraryCatalogPage> {
                       sliver: SliverToBoxAdapter(
                         child: _CatalogBookGrid(
                           books: books,
-                          favoriteIndexes:
-                              catalogController.favoriteIndexes.toSet(),
+                          favoriteBookIds:
+                              catalogController.favoriteBookIds.toSet(),
                           onBookTap: _handleBookTap,
                           onFavoriteTap: catalogController.toggleFavorite,
-                          onBorrowTap: catalogController.handleBorrowTap,
                         ),
                       ),
                     ),
@@ -655,17 +678,15 @@ class _FilterOptionTile<T> extends StatelessWidget {
 class _CatalogBookGrid extends StatelessWidget {
   const _CatalogBookGrid({
     required this.books,
-    required this.favoriteIndexes,
+    required this.favoriteBookIds,
     required this.onBookTap,
     required this.onFavoriteTap,
-    required this.onBorrowTap,
   });
 
-  final List<CatalogBookModel> books;
-  final Set<int> favoriteIndexes;
-  final ValueChanged<CatalogBookModel> onBookTap;
-  final ValueChanged<int> onFavoriteTap;
-  final ValueChanged<CatalogBookModel> onBorrowTap;
+  final List<BookModel> books;
+  final Set<String> favoriteBookIds;
+  final ValueChanged<BookModel> onBookTap;
+  final ValueChanged<String> onFavoriteTap;
 
   @override
   Widget build(BuildContext context) {
@@ -691,20 +712,19 @@ class _CatalogBookGrid extends StatelessWidget {
               width: cardWidth,
               title: book.title,
               author: book.author,
-              rating: book.rating,
-              imageUrl: book.imageUrl,
+              rating: book.ratingLabel,
+              imageUrl: book.coverUrl ?? '',
               isAvailable: book.isAvailable,
-              libraryLocation: book.libraryLocationLabel,
-              isFavorite: favoriteIndexes.contains(index),
+              libraryLocation: book.locationLabel,
+              isFavorite: favoriteBookIds.contains(book.id),
               showRatingBadge: false,
               showInlineRating: true,
               showBorrowButton: false,
               showAvailabilityStatus: true,
               showFavoriteButton: true,
-              dimUnavailableCover: true,
+              dimUnavailableCover: false,
               onTap: () => onBookTap(book),
-              onFavoriteTap: () => onFavoriteTap(index),
-              onBorrowTap: () => onBorrowTap(book),
+              onFavoriteTap: () => onFavoriteTap(book.id),
             );
           }),
         );
@@ -717,6 +737,53 @@ class _CatalogBookGrid extends StatelessWidget {
     if (width >= 680) return 3;
 
     return 2;
+  }
+}
+
+class _CatalogErrorState extends StatelessWidget {
+  const _CatalogErrorState({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(LuminaSpacing.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.wifi_off_rounded,
+              color: LuminaColors.onSurfaceVariant,
+              size: 48,
+            ),
+            const SizedBox(height: LuminaSpacing.md),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: LuminaTextStyles.bodyMd.copyWith(
+                color: LuminaColors.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: LuminaSpacing.lg),
+            ElevatedButton(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: LuminaColors.primary,
+                foregroundColor: LuminaColors.onPrimary,
+                elevation: 0,
+              ),
+              child: const Text('Coba Lagi'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

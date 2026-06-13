@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../../../shared/widgets/feedback/lumina_toast.dart';
 import '../../models/rack_management_models.dart';
 
 class RackController extends GetxController {
@@ -92,12 +93,8 @@ class RackController extends GetxController {
     final destinationRack = racks[destinationIndex];
 
     if (destinationRack.availableSlot < bookIds.length) {
-      Get.snackbar(
-        'Rak tujuan penuh',
+      LuminaToast.warning(
         'Rak ${destinationRack.rackCode} hanya memiliki ${destinationRack.availableSlot} slot tersedia.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
       );
       return false;
     }

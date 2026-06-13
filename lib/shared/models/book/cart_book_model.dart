@@ -1,3 +1,6 @@
+// ignore_for_file: unused_import
+import 'package:lumina_library/shared/models/cart/cart_model.dart';
+
 class LibraryCartBook {
   const LibraryCartBook({
     required this.id,
@@ -127,6 +130,21 @@ class LibraryCartBook {
       'libraryLatitude': libraryLatitude,
       'libraryLongitude': libraryLongitude,
     };
+  }
+
+  /// Konversi dari `CartItemModel` (API response) ke LibraryCartBook untuk UI.
+  factory LibraryCartBook.fromCartItem(CartItemModel item) {
+    return LibraryCartBook(
+      id: item.id,
+      title: item.title,
+      author: item.author,
+      imageUrl: item.coverUrl ?? '',
+      isAvailable: item.isAvailable,
+      statusLabel: item.isAvailable ? 'Tersedia' : 'Tidak Tersedia',
+      libraryId: item.branchId,
+      libraryName: item.branchName,
+      libraryAddress: item.branchAddress,
+    );
   }
 
   static double? _parseDouble(dynamic value) {

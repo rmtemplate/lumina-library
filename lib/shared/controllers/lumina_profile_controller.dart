@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'package:lumina_library/core/network/lumina_api_exception.dart';
 import 'package:lumina_library/core/routing/lumina_role_router.dart';
 import 'package:lumina_library/core/services/lumina_storage_service.dart';
 import 'package:lumina_library/features/auth/data/services/auth_api_service.dart';
+import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
 import '../../core/theme/lumina_colors.dart';
 import '../models/profile/lumina_profile_models.dart';
+import '../widgets/feedback/lumina_toast.dart';
 
 class LuminaProfileController extends GetxController {
   LuminaProfileController({
@@ -85,14 +88,31 @@ class LuminaProfileController extends GetxController {
   );
 
   final Rx<LuminaProfileDataModel> profile = _dummyUserProfile.obs;
+  final RxBool isLoading = false.obs;
 
   @override
   void onInit() {
     super.onInit();
-
     profile.value = role == LuminaProfileRole.staff
         ? _dummyStaffProfile
         : _dummyUserProfile;
+    _loadProfileFromApi();
+  }
+
+  Future<void> _loadProfileFromApi() async {
+    if (role == LuminaProfileRole.staff) return;
+    try {
+      final apiProfile = await Get.find<HomeApiService>().getProfile();
+      profile.value = profile.value.copyWith(
+        id: apiProfile.id.isNotEmpty ? apiProfile.id : null,
+        fullname: apiProfile.fullname.isNotEmpty ? apiProfile.fullname : null,
+        email: apiProfile.email.isNotEmpty ? apiProfile.email : null,
+        avatarUrl: apiProfile.avatarUrl,
+        memberCode: apiProfile.memberCode,
+      );
+    } catch (_) {
+      // fallback ke dummy — tidak perlu crash
+    }
   }
 
   bool get isStaff => profile.value.role == LuminaProfileRole.staff;
@@ -234,23 +254,11 @@ class LuminaProfileController extends GetxController {
   }
 
   void openSettings() {
-    Get.snackbar(
-      'Settings',
-      'Halaman pengaturan belum tersedia.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 2),
-    );
+    LuminaToast.info('Halaman pengaturan belum tersedia.');
   }
 
   void editProfilePhoto() {
-    Get.snackbar(
-      'Update Profile Photo',
-      'Fitur update foto profil belum tersedia.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 2),
-    );
+    LuminaToast.info('Fitur update foto profil belum tersedia.');
   }
 
   void handleMenuTap(LuminaProfileMenuItemModel item) {
@@ -258,18 +266,130 @@ class LuminaProfileController extends GetxController {
       case 'update_profile_photo':
         editProfilePhoto();
         return;
+      case 'change_password':
+        _showChangePasswordSheet();
+        return;
       case 'logout':
         _confirmLogout();
         return;
       default:
-        Get.snackbar(
-          item.label,
-          item.description ?? 'Menu ${item.label} belum tersedia.',
-          snackPosition: SnackPosition.BOTTOM,
-          margin: const EdgeInsets.all(16),
-          duration: const Duration(seconds: 2),
-        );
+        LuminaToast.info(item.description ?? 'Menu ${item.label} belum tersedia.');
     }
+  }
+
+  void _showChangePasswordSheet() {
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    final isSaving = false.obs;
+
+    Get.bottomSheet(
+      Container(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 24,
+          bottom: 20 + (Get.mediaQuery.viewInsets.bottom),
+        ),
+        decoration: const BoxDecoration(
+          color: LuminaColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: LuminaColors.outlineVariant,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Ganti Password',
+                  style: TextStyle(
+                    color: LuminaColors.primary,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                _PasswordField(controller: currentCtrl, label: 'Password Saat Ini'),
+                const SizedBox(height: 12),
+                _PasswordField(controller: newCtrl, label: 'Password Baru'),
+                const SizedBox(height: 12),
+                _PasswordField(controller: confirmCtrl, label: 'Konfirmasi Password Baru'),
+                const SizedBox(height: 24),
+                Obx(() => SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: isSaving.value
+                        ? null
+                        : () async {
+                            if (currentCtrl.text.isEmpty ||
+                                newCtrl.text.isEmpty ||
+                                confirmCtrl.text.isEmpty) {
+                              LuminaToast.warning('Isi semua kolom password.');
+                              return;
+                            }
+                            if (newCtrl.text != confirmCtrl.text) {
+                              LuminaToast.warning('Konfirmasi password tidak sesuai.');
+                              return;
+                            }
+                            isSaving.value = true;
+                            try {
+                              await Get.find<HomeApiService>().updatePassword(
+                                currentPassword: currentCtrl.text,
+                                newPassword: newCtrl.text,
+                                confirmPassword: confirmCtrl.text,
+                              );
+                              Get.back<void>();
+                              LuminaToast.success('Password berhasil diperbarui.');
+                            } on LuminaApiException catch (e) {
+                              LuminaToast.error(e.displayMessage);
+                            } catch (_) {
+                              LuminaToast.error('Gagal memperbarui password.');
+                            } finally {
+                              isSaving.value = false;
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: LuminaColors.primary,
+                      foregroundColor: LuminaColors.onPrimary,
+                    ),
+                    child: isSaving.value
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Simpan Password',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                  ),
+                )),
+              ],
+            ),
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+    );
   }
 
   void _confirmLogout() {
@@ -368,6 +488,7 @@ class LuminaProfileController extends GetxController {
   }
 
   Future<void> _executeLogout() async {
+
     Get.back(); // tutup bottom sheet
 
     try {
@@ -380,5 +501,35 @@ class LuminaProfileController extends GetxController {
 
     LuminaStorageService.clearSession();
     LuminaRoleRouter.goToLogin();
+  }
+}
+
+class _PasswordField extends StatefulWidget {
+  const _PasswordField({required this.controller, required this.label});
+
+  final TextEditingController controller;
+  final String label;
+
+  @override
+  State<_PasswordField> createState() => _PasswordFieldState();
+}
+
+class _PasswordFieldState extends State<_PasswordField> {
+  bool _obscure = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: widget.controller,
+      obscureText: _obscure,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        suffixIcon: IconButton(
+          icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+          onPressed: () => setState(() => _obscure = !_obscure),
+        ),
+      ),
+    );
   }
 }

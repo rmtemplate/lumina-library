@@ -6,6 +6,7 @@ import '../../../../../core/theme/lumina_radius.dart';
 import '../../../../../core/theme/lumina_spacing.dart';
 import '../../../../../core/theme/lumina_text_styles.dart';
 import '../../../data/controllers/library_login_controller.dart';
+import '../../../../../shared/widgets/feedback/lumina_toast.dart';
 
 class LibraryLoginPage extends StatefulWidget {
   const LibraryLoginPage({
@@ -68,13 +69,7 @@ class _LibraryLoginPageState extends State<LibraryLoginPage> {
       return;
     }
 
-    Get.snackbar(
-      'Register',
-      'Halaman register belum tersedia.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 2),
-    );
+    LuminaToast.info('Halaman register belum tersedia.');
   }
 
   void _handleForgotPasswordTap() {
@@ -83,13 +78,7 @@ class _LibraryLoginPageState extends State<LibraryLoginPage> {
       return;
     }
 
-    Get.snackbar(
-      'Lupa Password',
-      'Fitur lupa password belum tersedia.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 2),
-    );
+    LuminaToast.info('Fitur lupa password belum tersedia.');
   }
 
   @override

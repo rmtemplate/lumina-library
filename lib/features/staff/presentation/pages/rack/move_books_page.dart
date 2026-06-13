@@ -5,6 +5,7 @@ import '../../../../../core/theme/lumina_colors.dart';
 import '../../../../../core/theme/lumina_radius.dart';
 import '../../../../../core/theme/lumina_spacing.dart';
 import '../../../../../core/theme/lumina_text_styles.dart';
+import '../../../../../shared/widgets/feedback/lumina_toast.dart';
 import '../../controllers/rack/move_books_controller.dart';
 import '../../controllers/rack/rack_controller.dart';
 import '../../widgets/rack/rack_management_widgets.dart';
@@ -74,20 +75,12 @@ class MoveBooksPage extends StatelessWidget {
     final success = moveController.moveBooks();
 
     if (!success) {
-      Get.snackbar(
-        'Gagal',
-        'Buku belum berhasil dipindahkan.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-      );
+      LuminaToast.error('Buku belum berhasil dipindahkan.');
       return;
     }
 
-    Get.snackbar(
-      'Berhasil',
+    LuminaToast.success(
       '${selectedBookIds.length} buku berhasil dipindahkan ke ${destinationRack.name}.',
-      snackPosition: SnackPosition.BOTTOM,
-      margin: const EdgeInsets.all(16),
     );
 
     Get.back<bool>(result: true);

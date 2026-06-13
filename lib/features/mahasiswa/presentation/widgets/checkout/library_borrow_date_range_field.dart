@@ -5,6 +5,7 @@ import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
 
 class LibraryBorrowDateRangeField extends StatelessWidget {
   const LibraryBorrowDateRangeField({
@@ -123,13 +124,7 @@ class LibraryBorrowDateRangeField extends StatelessWidget {
     var selectedEnd = _dateOnly(selectedRange.end);
 
     if (!allowBackdate && selectedStart.isBefore(today)) {
-      Get.snackbar(
-        'Tanggal Tidak Valid',
-        'Tanggal pinjam tidak boleh sebelum hari ini.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      );
+      LuminaToast.warning('Tanggal pinjam tidak boleh sebelum hari ini.');
       return;
     }
 
@@ -137,26 +132,15 @@ class LibraryBorrowDateRangeField extends StatelessWidget {
 
     if (duration <= 0) {
       selectedEnd = selectedStart.add(const Duration(days: 1));
-
-      Get.snackbar(
-        'Tanggal Disesuaikan',
-        'Tanggal kembali harus setelah tanggal pinjam.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      );
+      LuminaToast.warning('Tanggal kembali harus setelah tanggal pinjam.');
     }
 
     final fixedDuration = _durationDays(selectedStart, selectedEnd);
 
     if (fixedDuration > maxRangeDays) {
       selectedEnd = selectedStart.add(Duration(days: maxRangeDays));
-
-      Get.snackbar(
-        'Durasi Disesuaikan',
+      LuminaToast.warning(
         'Maksimal peminjaman adalah $maxRangeDays hari. Tanggal kembali otomatis disesuaikan.',
-        snackPosition: SnackPosition.BOTTOM,
-        margin: const EdgeInsets.all(16),
         duration: const Duration(seconds: 3),
       );
     }

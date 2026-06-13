@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import 'package:lumina_library/core/theme/lumina_colors.dart';
@@ -6,65 +7,174 @@ import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';
-import 'package:lumina_library/features/mahasiswa/presentation/widgets/catalog/library_trending_book_card.dart';
-import 'package:lumina_library/shared/models/book/book_info_item_model.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/pages/cart/library_cart_page.dart';
+import 'package:lumina_library/shared/models/book/book_model.dart';
+import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
+import 'package:lumina_library/shared/widgets/skeleton/lumina_skeleton.dart';
 
 class LibraryBookDetailPage extends StatelessWidget {
   const LibraryBookDetailPage({super.key});
 
-  LibraryBookDetailController get controller => Get.isRegistered<LibraryBookDetailController>()
-      ? Get.find<LibraryBookDetailController>()
-      : Get.put(LibraryBookDetailController(), permanent: true);
+  LibraryBookDetailController get controller =>
+      Get.isRegistered<LibraryBookDetailController>()
+          ? Get.find<LibraryBookDetailController>()
+          : Get.put(LibraryBookDetailController(), permanent: true);
+
+  void _showBookOptionsSheet(BuildContext context, BookModel? book) {
+    if (book == null) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _BookOptionsSheet(book: book),
+    );
+  }
+
+  void _showAddedToCartSheet(BuildContext context, BookModel? book) {
+    if (book == null) return;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      barrierColor: Colors.black.withValues(alpha: 0.42),
+      builder: (_) => _AddedToCartSheet(bookTitle: book.title),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final detailController = controller;
+    final ctrl = controller;
 
     return Obx(
-      () => Scaffold(
-        backgroundColor: LuminaColors.surface,
-        bottomNavigationBar: _BookDetailActionBar(
-          isBookmarked: detailController.isBookmarked.value,
-          isInCart: detailController.isInCart.value,
-          onBookmarkTap: detailController.toggleBookmark,
-          onCartTap: detailController.toggleCart,
-          onBorrowTap: detailController.handleBorrowBook,
-        ),
-        body: Column(
-          children: [
-            const _BookDetailTopBar(),
-            Expanded(
-              child: ListView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(
-                  LuminaSpacing.marginMobile,
-                  LuminaSpacing.lg,
-                  LuminaSpacing.marginMobile,
-                  LuminaSpacing.xl,
-                ),
-                children: [
-                  const _BookHeroSection(),
-                  const SizedBox(height: LuminaSpacing.xl),
-                  const _BookInfoGrid(),
-                  const SizedBox(height: LuminaSpacing.xl),
-                  _SynopsisSection(
-                    isExpanded: detailController.isSynopsisExpanded.value,
-                    onToggle: detailController.toggleSynopsis,
-                  ),
-                  const SizedBox(height: LuminaSpacing.xl),
-                  const _SimilarBooksSection(),
-                ],
+      () {
+        final book = ctrl.currentBook.value;
+
+        return Scaffold(
+          backgroundColor: LuminaColors.surface,
+          bottomNavigationBar: _BookDetailActionBar(
+            isBookmarked: ctrl.isBookmarked.value,
+            isInCart: ctrl.isInCart.value,
+            isCartLoading: ctrl.isCartLoading.value,
+            onBookmarkTap: ctrl.toggleBookmark,
+            onCartTap: ctrl.toggleCart,
+            onBorrowTap: () async {
+              if (ctrl.isInCart.value) {
+                // Sudah di keranjang → navigasi langsung
+                Get.to(() => LibraryCartPage(), transition: Transition.cupertino);
+                return;
+              }
+              final justAdded = await ctrl.handleBorrowBook();
+              if (justAdded && context.mounted) {
+                _showAddedToCartSheet(context, ctrl.currentBook.value);
+              }
+            },
+          ),
+          body: Column(
+            children: [
+              _BookDetailTopBar(
+                onMoreTap: () => _showBookOptionsSheet(context, ctrl.currentBook.value),
               ),
-            ),
-          ],
-        ),
+              Expanded(
+                child: ctrl.isLoading.value
+                    ? const _BookDetailSkeleton()
+                    : ListView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(
+                          LuminaSpacing.marginMobile,
+                          LuminaSpacing.lg,
+                          LuminaSpacing.marginMobile,
+                          LuminaSpacing.xl,
+                        ),
+                        children: [
+                          _BookHeroSection(book: book),
+                          const SizedBox(height: LuminaSpacing.xl),
+                          _BookInfoGrid(book: book),
+                          const SizedBox(height: LuminaSpacing.xl),
+                          _SynopsisSection(
+                            synopsis: book?.description,
+                            isExpanded: ctrl.isSynopsisExpanded.value,
+                            onToggle: ctrl.toggleSynopsis,
+                          ),
+                          const SizedBox(height: LuminaSpacing.xl),
+                          const _SimilarBooksSection(),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BookDetailSkeleton extends StatelessWidget {
+  const _BookDetailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.lg,
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.xl,
       ),
+      children: [
+        // Cover placeholder
+        Center(
+          child: LuminaSkeleton(
+            width: 192,
+            height: 288,
+            radius: LuminaRadius.lg,
+          ),
+        ),
+        const SizedBox(height: LuminaSpacing.lg),
+        // Title
+        Center(child: LuminaSkeleton(width: 240, height: 24, radius: LuminaRadius.sm)),
+        const SizedBox(height: LuminaSpacing.xs),
+        Center(child: LuminaSkeleton(width: 160, height: 18, radius: LuminaRadius.sm)),
+        const SizedBox(height: LuminaSpacing.md),
+        // Rating
+        Center(child: LuminaSkeleton(width: 140, height: 20, radius: LuminaRadius.sm)),
+        const SizedBox(height: LuminaSpacing.lg),
+        // Availability badge
+        Center(child: LuminaSkeleton(width: 120, height: 32, radius: LuminaRadius.full)),
+        const SizedBox(height: LuminaSpacing.xl),
+        // Info grid
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const crossAxisCount = 2;
+            const spacing = LuminaSpacing.md;
+            final itemWidth = (constraints.maxWidth - spacing) / crossAxisCount;
+            return Wrap(
+              spacing: spacing,
+              runSpacing: spacing,
+              children: List.generate(6, (_) => SizedBox(
+                width: itemWidth,
+                child: const LuminaSkeleton(height: 72, radius: LuminaRadius.xl),
+              )),
+            );
+          },
+        ),
+        const SizedBox(height: LuminaSpacing.xl),
+        // Synopsis
+        const LuminaSkeleton(width: 100, height: 20, radius: LuminaRadius.sm),
+        const SizedBox(height: LuminaSpacing.sm),
+        const LuminaSkeleton(height: 14, radius: LuminaRadius.sm),
+        const SizedBox(height: 6),
+        const LuminaSkeleton(height: 14, radius: LuminaRadius.sm),
+        const SizedBox(height: 6),
+        const LuminaSkeleton(width: 260, height: 14, radius: LuminaRadius.sm),
+      ],
     );
   }
 }
 
 class _BookDetailTopBar extends StatelessWidget {
-  const _BookDetailTopBar();
+  const _BookDetailTopBar({this.onMoreTap});
+
+  final VoidCallback? onMoreTap;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +210,7 @@ class _BookDetailTopBar extends StatelessWidget {
 
               _TopBarIconButton(
                 icon: Icons.more_vert_rounded,
-                onTap: () {},
+                onTap: onMoreTap,
               ),
             ],
           ),
@@ -142,13 +252,20 @@ class _TopBarIconButton extends StatelessWidget {
 }
 
 class _BookHeroSection extends StatelessWidget {
-  const _BookHeroSection();
+  const _BookHeroSection({this.book});
 
-  static const String _coverUrl =
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuBuM61nMe96JO0Jup1sSitAZz_vi4AIvlbaVkBG0pgBM3SW3pbVd7xfb0Xv0_PIM3WOb4vbCLflnG4lWfEKhVCwvhNFu1Md5tJC3PouRQfdH5UCqcb1NmSy68c0ULuPl-znPqIfM8BRNG-cwaAH0sRHxX2clqDSuWbv_CVP8eSmSv4V1GeuyWyh7SniuoNa95ZnJLQu1JEt7cIYiJHEZ5PC1hCDYcg-5FXo4zgvnsm5ZwswmVzh3xC69rtQhQjazQKlCta8b_DUnZWN';
+  final BookModel? book;
 
   @override
   Widget build(BuildContext context) {
+    final coverUrl = book?.coverUrl;
+    final title = book?.title ?? 'Judul Buku';
+    final author = book?.author ?? '';
+    final rating = book?.ratingLabel ?? '-';
+    final ratingCount = book?.ratingCount ?? 0;
+    final isAvailable = book?.isAvailable ?? false;
+    final availableCount = book?.availability.availableItems ?? 0;
+
     return Column(
       children: [
         Stack(
@@ -199,21 +316,19 @@ class _BookHeroSection extends StatelessWidget {
               clipBehavior: Clip.antiAlias,
               child: AspectRatio(
                 aspectRatio: 2 / 3,
-                child: Image.network(
-                  _coverUrl,
-                  fit: BoxFit.cover,
-                  filterQuality: FilterQuality.high,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-
-                    return const _BookCoverPlaceholder(
-                      showLoading: true,
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
-                    return const _BookCoverPlaceholder();
-                  },
-                ),
+                child: coverUrl != null && coverUrl.isNotEmpty
+                    ? Image.network(
+                        coverUrl,
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const _BookCoverPlaceholder(showLoading: true);
+                        },
+                        errorBuilder: (context, error, stackTrace) =>
+                            const _BookCoverPlaceholder(),
+                      )
+                    : const _BookCoverPlaceholder(),
               ),
             ),
           ],
@@ -222,7 +337,7 @@ class _BookHeroSection extends StatelessWidget {
         const SizedBox(height: LuminaSpacing.lg),
 
         Text(
-          'The Architecture of Happiness',
+          title,
           textAlign: TextAlign.center,
           style: LuminaTextStyles.displayLgMobile.copyWith(
             color: LuminaColors.primary,
@@ -234,7 +349,7 @@ class _BookHeroSection extends StatelessWidget {
         const SizedBox(height: LuminaSpacing.xs),
 
         Text(
-          'Alain de Botton',
+          author,
           textAlign: TextAlign.center,
           style: LuminaTextStyles.titleLg.copyWith(
             color: LuminaColors.onSurfaceVariant,
@@ -244,11 +359,14 @@ class _BookHeroSection extends StatelessWidget {
 
         const SizedBox(height: LuminaSpacing.md),
 
-        const _BookRatingRow(),
+        _BookRatingRow(rating: rating, ratingCount: ratingCount),
 
         const SizedBox(height: LuminaSpacing.lg),
 
-        const _AvailabilityBadge(),
+        _AvailabilityBadge(
+          isAvailable: isAvailable,
+          availableCount: availableCount,
+        ),
       ],
     );
   }
@@ -286,7 +404,13 @@ class _BookCoverPlaceholder extends StatelessWidget {
 }
 
 class _BookRatingRow extends StatelessWidget {
-  const _BookRatingRow();
+  const _BookRatingRow({
+    required this.rating,
+    required this.ratingCount,
+  });
+
+  final String rating;
+  final int ratingCount;
 
   @override
   Widget build(BuildContext context) {
@@ -295,38 +419,18 @@ class _BookRatingRow extends StatelessWidget {
       children: [
         const Row(
           children: [
-            Icon(
-              Icons.star_rounded,
-              color: Color(0xFFF59E0B),
-              size: 21,
-            ),
-            Icon(
-              Icons.star_rounded,
-              color: Color(0xFFF59E0B),
-              size: 21,
-            ),
-            Icon(
-              Icons.star_rounded,
-              color: Color(0xFFF59E0B),
-              size: 21,
-            ),
-            Icon(
-              Icons.star_rounded,
-              color: Color(0xFFF59E0B),
-              size: 21,
-            ),
-            Icon(
-              Icons.star_half_rounded,
-              color: Color(0xFFF59E0B),
-              size: 21,
-            ),
+            Icon(Icons.star_rounded, color: Color(0xFFF59E0B), size: 21),
+            Icon(Icons.star_rounded, color: Color(0xFFF59E0B), size: 21),
+            Icon(Icons.star_rounded, color: Color(0xFFF59E0B), size: 21),
+            Icon(Icons.star_rounded, color: Color(0xFFF59E0B), size: 21),
+            Icon(Icons.star_half_rounded, color: Color(0xFFF59E0B), size: 21),
           ],
         ),
 
         const SizedBox(width: LuminaSpacing.sm),
 
         Text(
-          '4.8',
+          rating,
           style: LuminaTextStyles.bodyMd.copyWith(
             color: LuminaColors.onSurface,
             fontWeight: FontWeight.w800,
@@ -336,7 +440,7 @@ class _BookRatingRow extends StatelessWidget {
         const SizedBox(width: LuminaSpacing.xs),
 
         Text(
-          '(124 Reviews)',
+          ratingCount > 0 ? '($ratingCount Reviews)' : '',
           style: LuminaTextStyles.bodyMd.copyWith(
             color: LuminaColors.onSurfaceVariant,
           ),
@@ -347,36 +451,46 @@ class _BookRatingRow extends StatelessWidget {
 }
 
 class _AvailabilityBadge extends StatelessWidget {
-  const _AvailabilityBadge();
+  const _AvailabilityBadge({
+    required this.isAvailable,
+    required this.availableCount,
+  });
+
+  final bool isAvailable;
+  final int availableCount;
 
   @override
   Widget build(BuildContext context) {
+    final color = isAvailable ? LuminaColors.secondary : LuminaColors.error;
+    final label = isAvailable
+        ? (availableCount > 0 ? 'Tersedia ($availableCount)' : 'Tersedia')
+        : 'Dipinjam';
+    final icon = isAvailable
+        ? Icons.check_circle_outline_rounded
+        : Icons.cancel_outlined;
+
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: LuminaSpacing.sm,
         vertical: LuminaSpacing.xs,
       ),
       decoration: BoxDecoration(
-        color: LuminaColors.secondary.withOpacity(0.10),
+        color: color.withOpacity(0.10),
         borderRadius: BorderRadius.circular(LuminaRadius.full),
         border: Border.all(
-          color: LuminaColors.secondary.withOpacity(0.20),
+          color: color.withOpacity(0.20),
           width: 1,
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.check_circle_outline_rounded,
-            color: LuminaColors.secondary,
-            size: 17,
-          ),
+          Icon(icon, color: color, size: 17),
           const SizedBox(width: LuminaSpacing.base),
           Text(
-            'Tersedia',
+            label,
             style: LuminaTextStyles.labelMd.copyWith(
-              color: LuminaColors.secondary,
+              color: color,
               fontWeight: FontWeight.w800,
               letterSpacing: 0,
             ),
@@ -388,37 +502,42 @@ class _AvailabilityBadge extends StatelessWidget {
 }
 
 class _BookInfoGrid extends StatelessWidget {
-  const _BookInfoGrid();
+  const _BookInfoGrid({this.book});
+
+  final BookModel? book;
 
   @override
   Widget build(BuildContext context) {
-    const items = [
-      BookInfoItemModel(
-        label: 'Pages',
-        value: '280',
-        isStrongValue: true,
-      ),
-      BookInfoItemModel(
+    final rackCode = book?.availability.racks.isNotEmpty == true
+        ? book!.availability.racks.first.code
+        : '-';
+
+    final items = [
+      _InfoItem(
         label: 'Year',
-        value: '2006',
+        value: book?.publishYear?.toString() ?? '-',
         isStrongValue: true,
       ),
-      BookInfoItemModel(
+      _InfoItem(
         label: 'Category',
-        value: 'Philosophy',
+        value: book?.category?.name ?? '-',
         isStrongValue: true,
       ),
-      BookInfoItemModel(
+      _InfoItem(
         label: 'ISBN',
-        value: '978-0307277244',
+        value: book?.isbn ?? '-',
       ),
-      BookInfoItemModel(
+      _InfoItem(
         label: 'Publisher',
-        value: 'Vintage',
+        value: book?.publisher ?? '-',
       ),
-      BookInfoItemModel(
+      _InfoItem(
+        label: 'Language',
+        value: book?.language ?? '-',
+      ),
+      _InfoItem(
         label: 'Rack No.',
-        value: 'A-42',
+        value: rackCode,
         isStrongValue: true,
       ),
     ];
@@ -448,6 +567,18 @@ class _BookInfoGrid extends StatelessWidget {
       },
     );
   }
+}
+
+class _InfoItem {
+  const _InfoItem({
+    required this.label,
+    required this.value,
+    this.isStrongValue = false,
+  });
+
+  final String label;
+  final String value;
+  final bool isStrongValue;
 }
 
 class _BookInfoTile extends StatelessWidget {
@@ -521,18 +652,22 @@ class _BookInfoTile extends StatelessWidget {
 
 class _SynopsisSection extends StatelessWidget {
   const _SynopsisSection({
+    this.synopsis,
     required this.isExpanded,
     required this.onToggle,
   });
 
+  final String? synopsis;
   final bool isExpanded;
   final VoidCallback onToggle;
 
-  static const String _synopsis =
-      'In The Architecture of Happiness, Alain de Botton explores the hidden links between buildings and our well-being. Arguing that the places we live and work in profoundly shape our moods and identities, he takes readers on a fascinating journey through the history of architecture. From Palladian villas to modernist masterpieces, de Botton examines how different styles embody different values and ideas about what makes a good life. He suggests that our desire for beauty in our surroundings is fundamentally a desire for a particular kind of psychological harmony.';
+  static const String _fallbackSynopsis =
+      'Deskripsi buku belum tersedia.';
 
   @override
   Widget build(BuildContext context) {
+    final text = (synopsis?.isNotEmpty == true) ? synopsis! : _fallbackSynopsis;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -549,7 +684,7 @@ class _SynopsisSection extends StatelessWidget {
         Stack(
           children: [
             Text(
-              _synopsis,
+              text,
               maxLines: isExpanded ? null : 4,
               overflow:
                   isExpanded ? TextOverflow.visible : TextOverflow.ellipsis,
@@ -648,7 +783,7 @@ class _SimilarBooksSection extends StatelessWidget {
           physics: const BouncingScrollPhysics(),
           clipBehavior: Clip.none,
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start, // Penting agar rata atas saat text wrap berbeda baris
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
               _SimilarBookItem(
                 title: 'Thinking, Fast and Slow',
@@ -660,10 +795,10 @@ class _SimilarBooksSection extends StatelessWidget {
               SizedBox(width: LuminaSpacing.md),
 
               _SimilarBookItem(
-                title: 'Sapiens: A Brief History of Humankind', // Contoh teks panjang agar wrap
+                title: 'Sapiens: A Brief History of Humankind',
                 author: 'Yuval Noah Harari',
                 imageUrl:
-                    'https://lh3.googleusercontent.com/aida-public/AB6AXuAFEWu1BfcyY2SOmgrOjhQEaA8xik_NCxRJ_7_uyQ-1QWdBpc1hErB_-Z_cC9YUhLTmP5oI48ialhp0G2_o7JNGf7UiukjKQmnRl0Qtm3dkczUqd4xj1tsyLSWk6XpCvUUJdDCGuWfFi7VVxYbE28_R9TAuuYG4HPg1ZH-zvlhA_YtkdQ0V-foUIThZvrpT7wmi_q7z21Jx3NMAfAAnwjXz5ZyK-5ZGcITjedCt-yQkoIpGZoUjNbaXfYw3-RQbvXX-wXOJzI0ja2p-',
+                    'https://lh3.googleusercontent.com/aida-public/AB6AXuAFEWu1BfcyY2SOmgrOjhQEaA8xik_NCxRJ_7_uyQ-1QWdBpc1hErB_-Z_cC9YUhLTmP5oI48ialhp0G2_o7JNGf7UiukjKQmnRl0Qtm3dkczUqd4xj1tsyLSWk6XpCvUUJdDCGuWfFi7VVxYbE28_R9TAuuYG4HPg1ZH-zvlhA_YtkdQ0V-foUIThZvrpT7wmi_q7z21Jx3NMAfAAnwjXz5ZyK-5ZGcITjedCt-WA',
               ),
 
               SizedBox(width: LuminaSpacing.md),
@@ -671,15 +806,6 @@ class _SimilarBooksSection extends StatelessWidget {
               _SimilarBookItem(
                 title: 'Quiet',
                 author: 'Susan Cain',
-                imageUrl:
-                    'https://lh3.googleusercontent.com/aida-public/AB6AXuB-2DpyskGkjMHoH4bIdp0JJPYjHtAKA6uvsI9skUMMZjC71Oidp-ju9gNsDh30fp9RFC1jx41fl-nQcEgE5P9QuCrqVm4m1ICHdyNFwQlS2AOQ6VKyrAgR3mx56jH44Rfr9iII5eNnN25Em7VQiHlEzas_Zc4dP323dusgpJHpPV30lRDmlJ6pUTEbQCREFelHXIc4tdPhVb32m_3pivDY34gWX5R1rfHt-XUTJvfbIqZ6k8R6PIuP5UWv1qV1ipNuCnBPuV5ZlxRC',
-              ),
-
-              SizedBox(width: LuminaSpacing.md),
-
-              _SimilarBookItem(
-                title: 'Outliers',
-                author: 'Malcolm Gladwell',
                 imageUrl: '',
               ),
             ],
@@ -690,7 +816,6 @@ class _SimilarBooksSection extends StatelessWidget {
   }
 }
 
-// Widget khusus untuk list item buku tanpa style Card dan mengizinkan text wrap
 class _SimilarBookItem extends StatelessWidget {
   const _SimilarBookItem({
     required this.title,
@@ -705,52 +830,59 @@ class _SimilarBookItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 128, // Lebar tetap membatasi text agar melakukan wrap
+      width: 128,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min, // Biarkan tinggi menyesuaikan otomatis
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Gambar dengan rounded corners (tanpa border luar card)
           AspectRatio(
             aspectRatio: 2 / 3,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(LuminaRadius.md),
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
-                    color: LuminaColors.surfaceContainer,
-                    child: const Center(
-                      child: SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: LuminaColors.secondary,
-                        ),
+              child: imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: LuminaColors.surfaceContainer,
+                          child: const Center(
+                            child: SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: LuminaColors.secondary,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: LuminaColors.surfaceContainer,
+                          child: const Icon(
+                            Icons.menu_book_rounded,
+                            color: LuminaColors.primary,
+                            size: 40,
+                          ),
+                        );
+                      },
+                    )
+                  : Container(
+                      color: LuminaColors.surfaceContainer,
+                      child: const Icon(
+                        Icons.menu_book_rounded,
+                        color: LuminaColors.primary,
+                        size: 40,
                       ),
                     ),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    color: LuminaColors.surfaceContainer,
-                    child: const Icon(
-                      Icons.menu_book_rounded,
-                      color: LuminaColors.primary,
-                      size: 40,
-                    ),
-                  );
-                },
-              ),
             ),
           ),
 
           const SizedBox(height: LuminaSpacing.sm),
 
-          // Teks Judul (Tanpa maxLines dan overflow agar wrap)
           Text(
             title,
             style: LuminaTextStyles.bodyMd.copyWith(
@@ -761,7 +893,6 @@ class _SimilarBookItem extends StatelessWidget {
 
           const SizedBox(height: 2),
 
-          // Teks Author (Tanpa maxLines dan overflow agar wrap)
           Text(
             author,
             style: LuminaTextStyles.labelMd.copyWith(
@@ -775,11 +906,11 @@ class _SimilarBookItem extends StatelessWidget {
   }
 }
 
-
 class _BookDetailActionBar extends StatelessWidget {
   const _BookDetailActionBar({
     required this.isBookmarked,
     required this.isInCart,
+    required this.isCartLoading,
     required this.onBookmarkTap,
     required this.onCartTap,
     required this.onBorrowTap,
@@ -787,6 +918,7 @@ class _BookDetailActionBar extends StatelessWidget {
 
   final bool isBookmarked;
   final bool isInCart;
+  final bool isCartLoading;
   final VoidCallback onBookmarkTap;
   final VoidCallback onCartTap;
   final VoidCallback onBorrowTap;
@@ -845,32 +977,44 @@ class _BookDetailActionBar extends StatelessWidget {
                 child: SizedBox(
                   height: 48,
                   child: ElevatedButton(
-                    onPressed: onBorrowTap,
+                    onPressed: isCartLoading ? null : onBorrowTap,
                     style: ElevatedButton.styleFrom(
                       elevation: 0,
                       backgroundColor: LuminaColors.primary,
+                      disabledBackgroundColor: LuminaColors.primary.withOpacity(0.6),
                       foregroundColor: LuminaColors.onPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(LuminaRadius.lg),
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.import_contacts_rounded,
-                          size: 21,
-                        ),
-                        const SizedBox(width: LuminaSpacing.xs),
-                        Text(
-                          'Pinjam Buku',
-                          style: LuminaTextStyles.titleLg.copyWith(
-                            color: LuminaColors.onPrimary,
-                            fontWeight: FontWeight.w800,
+                    child: isCartLoading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: LuminaColors.onPrimary,
+                            ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                isInCart
+                                    ? Icons.shopping_cart_rounded
+                                    : Icons.import_contacts_rounded,
+                                size: 21,
+                              ),
+                              const SizedBox(width: LuminaSpacing.xs),
+                              Text(
+                                isInCart ? 'Lihat Keranjang' : 'Pinjam Buku',
+                                style: LuminaTextStyles.titleLg.copyWith(
+                                  color: LuminaColors.onPrimary,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ),
@@ -881,6 +1025,137 @@ class _BookDetailActionBar extends StatelessWidget {
     );
   }
 }
+
+// ─── Book Options Bottom Sheet ────────────────────────────────────────────────
+
+class _BookOptionsSheet extends StatelessWidget {
+  const _BookOptionsSheet({required this.book});
+
+  final BookModel book;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.md,
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.marginMobile,
+      ),
+      decoration: const BoxDecoration(
+        color: LuminaColors.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: LuminaColors.outlineVariant,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: LuminaSpacing.lg),
+            _OptionTile(
+              icon: Icons.copy_rounded,
+              label: 'Salin Info Buku',
+              subtitle: '${book.title} · ${book.author}',
+              onTap: () {
+                Clipboard.setData(
+                  ClipboardData(text: '${book.title} — ${book.author}'),
+                );
+                Get.back<void>();
+                LuminaToast.success('Info buku disalin ke clipboard.');
+              },
+            ),
+            const SizedBox(height: LuminaSpacing.xs),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OptionTile extends StatelessWidget {
+  const _OptionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: LuminaColors.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(LuminaRadius.xl),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: LuminaSpacing.md,
+            vertical: LuminaSpacing.md,
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: LuminaColors.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(LuminaRadius.lg),
+                ),
+                child: Icon(icon, color: LuminaColors.primary, size: 22),
+              ),
+              const SizedBox(width: LuminaSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: LuminaTextStyles.bodyLg.copyWith(
+                        color: LuminaColors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: LuminaTextStyles.labelMd.copyWith(
+                          color: LuminaColors.onSurfaceVariant,
+                          fontWeight: FontWeight.w500,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Bottom Icon Action ───────────────────────────────────────────────────────
 
 class _BottomIconAction extends StatelessWidget {
   const _BottomIconAction({
@@ -895,7 +1170,8 @@ class _BottomIconAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? LuminaColors.secondary : LuminaColors.onSurfaceVariant;
+    final color =
+        isActive ? LuminaColors.secondary : LuminaColors.onSurfaceVariant;
 
     return Material(
       color: LuminaColors.surfaceContainerLowest,
@@ -933,3 +1209,154 @@ class _BottomIconAction extends StatelessWidget {
   }
 }
 
+// ─── Bottom Sheet Konfirmasi Tambah ke Keranjang ──────────────────────────────
+
+class _AddedToCartSheet extends StatelessWidget {
+  const _AddedToCartSheet({required this.bookTitle});
+
+  final String bookTitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: LuminaColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(LuminaRadius.xl),
+        ),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.md,
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.marginMobile + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: LuminaColors.surfaceVariant,
+                borderRadius: BorderRadius.circular(LuminaRadius.full),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: LuminaSpacing.lg),
+
+          // Icon sukses
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: LuminaColors.secondary.withValues(alpha: 0.10),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.check_circle_rounded,
+              color: LuminaColors.secondary,
+              size: 36,
+            ),
+          ),
+
+          const SizedBox(height: LuminaSpacing.md),
+
+          // Judul
+          Text(
+            'Buku berhasil ditambahkan',
+            textAlign: TextAlign.center,
+            style: LuminaTextStyles.titleLg.copyWith(
+              color: LuminaColors.onSurface,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+
+          const SizedBox(height: LuminaSpacing.xs),
+
+          // Deskripsi
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: LuminaSpacing.sm),
+            child: Text(
+              '"$bookTitle" telah ditambahkan ke keranjang peminjaman kamu.',
+              textAlign: TextAlign.center,
+              style: LuminaTextStyles.bodyMd.copyWith(
+                color: LuminaColors.onSurfaceVariant,
+                height: 1.5,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: LuminaSpacing.xl),
+
+          // Tombol Lihat Keranjang
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              onPressed: () {
+                Get.back();
+                Get.to(
+                  () => LibraryCartPage(),
+                  transition: Transition.cupertino,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                backgroundColor: LuminaColors.primary,
+                foregroundColor: LuminaColors.onPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(LuminaRadius.lg),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.shopping_cart_rounded, size: 20),
+                  const SizedBox(width: LuminaSpacing.xs),
+                  Text(
+                    'Lihat Keranjang',
+                    style: LuminaTextStyles.titleMd.copyWith(
+                      color: LuminaColors.onPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: LuminaSpacing.sm),
+
+          // Tombol Tutup
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton(
+              onPressed: Get.back,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: LuminaColors.onSurface,
+                side: const BorderSide(color: LuminaColors.outlineVariant),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(LuminaRadius.lg),
+                ),
+              ),
+              child: Text(
+                'Tutup',
+                style: LuminaTextStyles.titleMd.copyWith(
+                  color: LuminaColors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: LuminaSpacing.sm),
+        ],
+      ),
+    );
+  }
+}

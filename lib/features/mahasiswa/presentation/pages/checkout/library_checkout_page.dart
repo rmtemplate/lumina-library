@@ -5,6 +5,7 @@ import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/pages/checkout/library_checkout_success_page.dart';
 import 'package:lumina_library/shared/models/book/cart_book_model.dart';
 import 'package:lumina_library/shared/widgets/date/lumina_date_range_bottom_sheet_field.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/cart/library_cart_controller.dart';
@@ -21,8 +22,15 @@ class LibraryCheckoutPage extends StatelessWidget {
           ? Get.find<LibraryCartController>()
           : Get.put(LibraryCartController());
 
-  void _confirmBorrowing() {
-    controller.confirmBorrowing();
+  Future<void> _confirmBorrowing() async {
+    final result = await controller.confirmBorrowing();
+    if (result == null) return;
+
+    // Ganti halaman checkout dengan halaman sukses (tidak ada back ke checkout)
+    Get.off(
+      () => LibraryCheckoutSuccessPage(result: result),
+      transition: Transition.fadeIn,
+    );
   }
 
   void _updateBorrowDateRange(DateTimeRange range) {
@@ -45,7 +53,7 @@ class LibraryCheckoutPage extends StatelessWidget {
           ),
           Expanded(
             child: Obx(() {
-              final books = controller.checkedItems;
+              final books = controller.checkedItems.map(LibraryCartBook.fromCartItem).toList();
 
               if (books.isEmpty) {
                 return const _CheckoutEmptyState();
@@ -133,7 +141,7 @@ class _CheckoutSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final libraryName = controller.selectedLibraryName ?? 'Perpustakaan';
+    final libraryName = controller.selectedBranchName ?? 'Perpustakaan';
     final count = controller.checkedCount;
 
     return Container(
@@ -520,6 +528,8 @@ class _CheckoutBottomAction extends StatelessWidget {
           child: Obx(() {
             final count = controller.checkedCount;
             final isValid = controller.isBorrowRangeValid;
+            final isCheckingOut = controller.isCheckoutLoading.value;
+            final canSubmit = count > 0 && isValid && !isCheckingOut;
 
             return Column(
               mainAxisSize: MainAxisSize.min,
@@ -551,7 +561,7 @@ class _CheckoutBottomAction extends StatelessWidget {
                   width: double.infinity,
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: count == 0 || !isValid ? null : onConfirmTap,
+                    onPressed: canSubmit ? onConfirmTap : null,
                     style: ElevatedButton.styleFrom(
                       elevation: 0,
                       backgroundColor: LuminaColors.primary,
@@ -564,25 +574,34 @@ class _CheckoutBottomAction extends StatelessWidget {
                         borderRadius: BorderRadius.circular(LuminaRadius.lg),
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Ajukan Peminjaman',
-                          style: LuminaTextStyles.titleLg.copyWith(
-                            color: count == 0 || !isValid
-                                ? LuminaColors.onSurfaceVariant
-                                : LuminaColors.onPrimary,
-                            fontWeight: FontWeight.w900,
+                    child: isCheckingOut
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: LuminaColors.onPrimary,
+                            ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Ajukan Peminjaman',
+                                style: LuminaTextStyles.titleLg.copyWith(
+                                  color: canSubmit
+                                      ? LuminaColors.onPrimary
+                                      : LuminaColors.onSurfaceVariant,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(width: LuminaSpacing.xs),
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                size: 21,
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(width: LuminaSpacing.xs),
-                        const Icon(
-                          Icons.check_circle_rounded,
-                          size: 21,
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ],
