@@ -217,9 +217,13 @@ class LibraryCartController extends GetxController {
 
     final allChecked = available.every((i) => checkedItemIds.contains(i.id));
     if (allChecked) {
-      for (final i in available) checkedItemIds.remove(i.id);
+      for (final i in available) {
+        checkedItemIds.remove(i.id);
+      }
     } else {
-      for (final i in available) checkedItemIds.add(i.id);
+      for (final i in available) {
+        checkedItemIds.add(i.id);
+      }
     }
     checkedItemIds.refresh();
   }

@@ -709,7 +709,7 @@ class RackCoverStack extends StatelessWidget {
                 child: Image.network(
                   covers[index],
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) {
+                  errorBuilder: (_, _, _) {
                     return const Icon(
                       Icons.menu_book_rounded,
                       color: LuminaColors.primary,
@@ -895,7 +895,7 @@ class BookCard extends StatelessWidget {
                                 child: Image.network(
                                   book.cover,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) {
+                                  errorBuilder: (_, _, _) {
                                     return const Center(
                                       child: Icon(
                                         Icons.menu_book_rounded,

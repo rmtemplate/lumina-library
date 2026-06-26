@@ -47,6 +47,7 @@ class LibraryNotificationController extends GetxController {
     }
   }
 
+  @override
   Future<void> refresh() async {
     await _loadAll();
   }

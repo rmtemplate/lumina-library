@@ -875,7 +875,7 @@ class _PeriodSelectorSheet extends StatelessWidget {
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: _periods.length,
-                separatorBuilder: (_, __) => const Divider(
+                separatorBuilder: (_, _) => const Divider(
                   height: 1,
                   color: LuminaColors.surfaceVariant,
                 ),

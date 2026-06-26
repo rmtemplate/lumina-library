@@ -25,7 +25,7 @@ class LibraryCategoryFilterBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: LuminaSpacing.sm),
+        separatorBuilder: (_, _) => const SizedBox(width: LuminaSpacing.sm),
         itemBuilder: (context, index) {
           final isActive = selectedIndex == index;
 

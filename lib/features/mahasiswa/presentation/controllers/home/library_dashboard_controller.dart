@@ -65,6 +65,7 @@ class LibraryDashboardController extends GetxController {
     ]);
   }
 
+  @override
   Future<void> refresh() => _fetchAll();
 
   // ── Banners ──────────────────────────────────────────────────────────────

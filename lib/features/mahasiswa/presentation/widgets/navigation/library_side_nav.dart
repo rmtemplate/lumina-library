@@ -69,7 +69,7 @@ class LibrarySideNav extends StatelessWidget {
               Expanded(
                 child: ListView.separated(
                   itemCount: _items.length,
-                  separatorBuilder: (_, __) =>
+                  separatorBuilder: (_, _) =>
                       const SizedBox(height: LuminaSpacing.sm),
                   itemBuilder: (context, index) {
                     final item = _items[index];

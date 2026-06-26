@@ -331,12 +331,21 @@ class HomeApiService {
   /// POST /api/v1/borrowings/{id}/qr/refresh — perbarui QR pickup.
   /// Hanya untuk borrowing dengan status awaiting_pickup.
   Future<CheckoutQrModel> refreshPickupQr(String borrowingId) async {
+    debugPrint('[QR][API] refreshPickupQr — borrowingId=$borrowingId');
+    debugPrint('[QR][API] Endpoint: POST /api/v1/borrowings/$borrowingId/qr/refresh');
     final response = await _client.post<Map<String, dynamic>>(
       '/borrowings/$borrowingId/qr/refresh',
       fromData: (data) => data as Map<String, dynamic>,
     );
     final qrJson = response.data!['qr'] as Map<String, dynamic>? ?? {};
-    return CheckoutQrModel.fromJson(qrJson);
+    debugPrint('[QR][API] Raw qr JSON keys=${qrJson.keys.toList()}');
+    final qr = CheckoutQrModel.fromJson(qrJson);
+    debugPrint(
+      '[QR][API] Parsed — id=${qr.id} code=${qr.code} ttlSeconds=${qr.ttlSeconds} '
+      'expiresAt=${qr.expiresAt} declaredMimeType=${qr.declaredMimeType} '
+      'isSvgContent=${qr.isSvgContent} isRenderableRasterImage=${qr.isRenderableRasterImage}',
+    );
+    return qr;
   }
 
   // ── My Books ──────────────────────────────────────────────────────────────
@@ -412,14 +421,22 @@ class HomeApiService {
   /// POST /api/v1/my-books/{borrowingId}/return-qr/refresh
   /// Buat/perbarui QR pengembalian buku.
   Future<CheckoutQrModel> refreshReturnQr(String borrowingId) async {
-    debugPrint('[MYBOOK_DETAIL] refreshReturnQr — borrowingId=$borrowingId');
+    debugPrint('[QR][API] refreshReturnQr — borrowingId=$borrowingId');
+    debugPrint('[QR][API] Endpoint: POST /api/v1/my-books/$borrowingId/return-qr/refresh');
 
     final response = await _client.post<Map<String, dynamic>>(
       '/my-books/$borrowingId/return-qr/refresh',
       fromData: (data) => data as Map<String, dynamic>,
     );
     final qrJson = response.data!['qr'] as Map<String, dynamic>? ?? {};
-    return CheckoutQrModel.fromJson(qrJson);
+    debugPrint('[QR][API] Raw qr JSON keys=${qrJson.keys.toList()}');
+    final qr = CheckoutQrModel.fromJson(qrJson);
+    debugPrint(
+      '[QR][API] Parsed — id=${qr.id} code=${qr.code} ttlSeconds=${qr.ttlSeconds} '
+      'expiresAt=${qr.expiresAt} declaredMimeType=${qr.declaredMimeType} '
+      'isSvgContent=${qr.isSvgContent} isRenderableRasterImage=${qr.isRenderableRasterImage}',
+    );
+    return qr;
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

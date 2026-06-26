@@ -6,7 +6,6 @@ import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/search/library_search_controller.dart';
-import 'package:lumina_library/features/mahasiswa/presentation/widgets/library_location/library_nearby_library_slider.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/catalog/library_trending_book_card.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/catalog/library_book_detail_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/search/library_search_result_page.dart';

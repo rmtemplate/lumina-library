@@ -177,7 +177,7 @@ class LibraryMyBookItemModel {
             ? 'Sudah dikembalikan'
             : 'Dikembalikan pada $returnedDateText';
       case LibraryMyBookStatus.waitingPayment:
-        return 'Menunggu pembayaran denda ${fineAmountText}';
+        return 'Menunggu pembayaran denda $fineAmountText';
       case LibraryMyBookStatus.expired:
         return 'Reservasi telah kadaluwarsa';
       case LibraryMyBookStatus.cancelled:

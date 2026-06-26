@@ -63,7 +63,7 @@ class LibraryNotificationPage extends StatelessWidget {
                   ),
                   padding: const EdgeInsets.symmetric(vertical: LuminaSpacing.sm),
                   itemCount: ctrl.notifications.length,
-                  separatorBuilder: (_, __) => Divider(
+                  separatorBuilder: (_, _) => Divider(
                     height: 1,
                     thickness: 1,
                     color: LuminaColors.outlineVariant.withOpacity(0.15),
@@ -334,14 +334,14 @@ class _NotificationSkeletonList extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(vertical: LuminaSpacing.sm),
       itemCount: 8,
-      separatorBuilder: (_, __) => Divider(
+      separatorBuilder: (_, _) => Divider(
         height: 1,
         thickness: 1,
         color: LuminaColors.outlineVariant.withOpacity(0.15),
         indent: LuminaSpacing.marginMobile,
         endIndent: LuminaSpacing.marginMobile,
       ),
-      itemBuilder: (_, __) => const _NotificationTileSkeleton(),
+      itemBuilder: (_, _) => const _NotificationTileSkeleton(),
     );
   }
 }

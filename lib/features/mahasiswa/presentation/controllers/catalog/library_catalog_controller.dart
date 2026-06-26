@@ -101,6 +101,7 @@ class LibraryCatalogController extends GetxController {
 
   /// Dipanggil setiap kali user kembali ke tab Catalog.
   /// Me-refresh categories + books dan mereset filter ke default.
+  @override
   Future<void> refresh() async {
     resetFilters();
     await _loadAll();

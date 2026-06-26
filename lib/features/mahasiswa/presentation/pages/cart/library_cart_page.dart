@@ -697,7 +697,7 @@ class _DeleteCartBookSheet extends StatelessWidget {
                     child: Image.network(
                       book.imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) {
+                      errorBuilder: (_, _, _) {
                         return const Icon(
                           Icons.menu_book_rounded,
                           color: LuminaColors.primary,

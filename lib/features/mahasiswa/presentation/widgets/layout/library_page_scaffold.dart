@@ -21,7 +21,7 @@ class LibraryPageScaffold extends StatelessWidget {
       color: LuminaColors.background,
       child: Column(
         children: [
-          if (topBar != null) topBar!,
+          ?topBar,
           Expanded(
             child: Align(
               alignment: Alignment.topCenter,

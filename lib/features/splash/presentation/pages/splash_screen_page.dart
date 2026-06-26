@@ -6,6 +6,7 @@ import 'package:lumina_library/core/network/lumina_api_exception.dart';
 import 'package:lumina_library/core/routing/lumina_role_router.dart';
 import 'package:lumina_library/core/services/lumina_permission_service.dart';
 import 'package:lumina_library/core/services/lumina_storage_service.dart';
+import 'package:lumina_library/core/services/websocket/websocket_service.dart';
 import 'package:lumina_library/features/auth/data/models/auth_models.dart';
 import 'package:lumina_library/features/auth/data/services/auth_api_service.dart';
 import 'package:lumina_library/features/onboarding/presentation/pages/onboarding_page.dart';
@@ -83,6 +84,7 @@ class _SplashScreenPageState extends State<SplashScreenPage>
       final user = await authService.me();
 
       LuminaStorageService.saveUser(user.toJson());
+      unawaited(Get.find<WebSocketService>().connectForCurrentUser());
 
       if (!mounted) return;
       final role = user.isStaff ? 'STAFF' : 'MEMBER';
@@ -103,6 +105,7 @@ class _SplashScreenPageState extends State<SplashScreenPage>
       if (userJson != null) {
         final user = AuthUserModel.fromJson(userJson);
         final role = user.isStaff ? 'STAFF' : 'MEMBER';
+        unawaited(Get.find<WebSocketService>().connectForCurrentUser());
         await LuminaPermissionService.navigateWithCheck(
           () => LuminaRoleRouter.navigateAfterLogin(role),
         );

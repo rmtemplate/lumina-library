@@ -90,7 +90,7 @@ class LibraryStaffDashboardHeader extends StatelessWidget {
                     child: Image.network(
                       avatarUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) {
+                      errorBuilder: (_, _, _) {
                         return Container(
                           color: LuminaColors.surfaceContainerLow,
                           child: const Icon(

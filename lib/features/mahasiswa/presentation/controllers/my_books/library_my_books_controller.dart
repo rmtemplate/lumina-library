@@ -1,8 +1,15 @@
+import 'dart:async';
+
 import 'package:get/get.dart';
 
 import 'package:lumina_library/core/network/lumina_api_exception.dart';
+import 'package:lumina_library/core/services/websocket/websocket_event.dart';
+import 'package:lumina_library/core/services/websocket/websocket_service.dart';
 import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
 import 'package:lumina_library/shared/models/book/library_my_book_item_model.dart';
+import 'package:lumina_library/shared/widgets/popups/borrowing_expired_popup.dart';
+import 'package:lumina_library/shared/widgets/popups/pickup_failed_popup.dart';
+import 'package:lumina_library/shared/widgets/popups/pickup_success_popup.dart';
 
 class LibraryMyBooksController extends GetxController {
   // ── Filter ────────────────────────────────────────────────────────────────
@@ -33,12 +40,111 @@ class LibraryMyBooksController extends GetxController {
 
   static const int _perPage = 10;
 
+  // ── Realtime (WebSocket) ──────────────────────────────────────────────────
+
+  StreamSubscription<WebSocketEvent>? _wsSubscription;
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   @override
   void onInit() {
     super.onInit();
     _loadInitial();
+    _listenToRealtimeEvents();
+  }
+
+  @override
+  void onClose() {
+    _wsSubscription?.cancel();
+    super.onClose();
+  }
+
+  /// Subscribes to the WebSocketService firehose and reacts to every event
+  /// that affects a borrowing this list shows — pickup success/failure, QR
+  /// lifecycle, and auto-expiry. No polling: the list only refetches when
+  /// the backend actually pushes something, via [refresh].
+  void _listenToRealtimeEvents() {
+    if (!Get.isRegistered<WebSocketService>()) return;
+
+    _wsSubscription = Get.find<WebSocketService>().events.listen((event) {
+      switch (event.name) {
+        case 'pickup.success':
+          _onPickupSuccess(event);
+        case 'pickup.failed':
+          _onPickupFailed(event);
+        case 'borrowing.expired':
+          _onBorrowingExpired(event);
+        case 'qr.generated':
+        case 'qr.refreshed':
+        case 'qr.expired':
+          // QR state changed server-side for some borrowing in this list —
+          // refetch so status/QR-derived fields stay accurate. The QR
+          // bottom sheet itself (library_my_book_detail_page.dart) listens
+          // independently for its own live countdown/image updates.
+          unawaited(refresh());
+      }
+    });
+  }
+
+  LibraryMyBookItemModel? _findByBorrowingId(String? borrowingId) {
+    if (borrowingId == null) return null;
+    for (final book in _allBooks) {
+      if (book.loanId == borrowingId) return book;
+    }
+    return null;
+  }
+
+  void _onPickupSuccess(WebSocketEvent event) {
+    final book = _findByBorrowingId(event.borrowingId);
+    unawaited(refresh());
+
+    final context = Get.context;
+    if (context == null) return;
+
+    final pickedAtRaw = event.data['picked_at'] as String?;
+    final pickedAt = pickedAtRaw != null
+        ? (DateTime.tryParse(pickedAtRaw)?.toLocal() ?? DateTime.now())
+        : DateTime.now();
+
+    unawaited(
+      PickupSuccessPopup.show(
+        context,
+        bookCoverUrl: book?.imageUrl,
+        bookTitle: book?.title,
+        borrowingCode:
+            (event.data['borrowing_code'] as String?) ?? book?.bookCode ?? '',
+        pickedAt: pickedAt,
+      ).catchError((error, stackTrace) {
+        // optional debug log
+      }),
+    );
+  }
+
+
+  void _onPickupFailed(WebSocketEvent event) {
+    final context = Get.context;
+    if (context == null) return;
+
+    unawaited(PickupFailedPopup.show(
+      context,
+      borrowingCode: event.data['borrowing_code'] as String?,
+      reason: (event.data['reason'] as String?) ?? 'QR tidak dapat diproses.',
+    ));
+  }
+
+  void _onBorrowingExpired(WebSocketEvent event) {
+    final book = _findByBorrowingId(event.borrowingId);
+    unawaited(refresh());
+
+    final context = Get.context;
+    if (context == null) return;
+
+    unawaited(BorrowingExpiredPopup.show(
+      context,
+      bookCoverUrl: book?.imageUrl,
+      bookTitle: book?.title,
+      borrowingCode: (event.data['borrowing_code'] as String?) ?? book?.bookCode ?? '',
+    ));
   }
 
   // ── Reset filter (dipanggil saat tab dibuka) ──────────────────────────────
@@ -62,6 +168,7 @@ class LibraryMyBooksController extends GetxController {
     isInitialLoading.value = false;
   }
 
+  @override
   Future<void> refresh() async {
     if (isRefreshing.value) return;
     isRefreshing.value = true;

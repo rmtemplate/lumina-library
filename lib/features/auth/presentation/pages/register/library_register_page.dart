@@ -206,7 +206,7 @@ class _RegisterLogo extends StatelessWidget {
       child: Image.asset(
         logoAssetPath!,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => const _RegisterLogoFallback(),
+        errorBuilder: (_, _, _) => const _RegisterLogoFallback(),
       ),
     );
   }
@@ -932,7 +932,7 @@ class _ProfileTypePickerSheet extends StatelessWidget {
                 shrinkWrap: true,
                 physics: const BouncingScrollPhysics(),
                 itemCount: LibraryRegisterController.profileTypes.length,
-                separatorBuilder: (_, __) {
+                separatorBuilder: (_, _) {
                   return const SizedBox(height: LuminaSpacing.sm);
                 },
                 itemBuilder: (context, index) {

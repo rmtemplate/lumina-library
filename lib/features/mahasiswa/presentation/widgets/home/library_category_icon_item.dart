@@ -90,7 +90,7 @@ class _NetworkImage extends StatelessWidget {
     return Image.network(
       url,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) => const _IconFallback(
+      errorBuilder: (_, _, _) => const _IconFallback(
         icon: Icons.category_rounded,
       ),
       loadingBuilder: (_, child, progress) {

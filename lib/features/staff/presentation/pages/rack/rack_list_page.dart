@@ -88,7 +88,7 @@ class RackListPage extends StatelessWidget {
                       LuminaSpacing.xl,
                     ),
                     itemCount: racks.length,
-                    separatorBuilder: (_, __) {
+                    separatorBuilder: (_, _) {
                       return const SizedBox(height: LuminaSpacing.md);
                     },
                     itemBuilder: (context, index) {

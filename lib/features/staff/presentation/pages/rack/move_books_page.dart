@@ -318,7 +318,7 @@ class _SelectedBooksPreview extends StatelessWidget {
               child: Image.network(
                 book.cover,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) {
+                errorBuilder: (_, _, _) {
                   return const Icon(
                     Icons.menu_book_rounded,
                     color: LuminaColors.primary,
@@ -433,7 +433,7 @@ class _MoveReasonSection extends StatelessWidget {
           ),
           const SizedBox(height: LuminaSpacing.sm),
           DropdownButtonFormField<String>(
-            value: controller.selectedReason.value,
+            initialValue: controller.selectedReason.value,
             isExpanded: true,
             decoration: InputDecoration(
               filled: true,

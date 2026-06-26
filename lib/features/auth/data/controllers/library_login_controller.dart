@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import 'package:lumina_library/core/network/lumina_api_exception.dart';
 import 'package:lumina_library/core/routing/lumina_role_router.dart';
 import 'package:lumina_library/core/services/lumina_storage_service.dart';
+import 'package:lumina_library/core/services/websocket/websocket_service.dart';
 import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
@@ -81,6 +84,8 @@ class LibraryLoginController extends GetxController {
         token: result.token,
         user: result.user.toJson(),
       );
+
+      unawaited(Get.find<WebSocketService>().connectForCurrentUser());
 
       if (onSuccess != null) {
         onSuccess();

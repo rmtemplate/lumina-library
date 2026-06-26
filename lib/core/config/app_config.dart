@@ -3,17 +3,17 @@ import 'dart:io';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:lumina_library/core/config/network_config.dart';
+
 class AppConfig {
   const AppConfig._();
 
-  /// Base URL backend Laravel.
-  /// Android emulator  → http://10.0.2.2
-  /// Laragon (host OS) → http://lumina-library.test
-  // static const String baseUrl = 'http://172.20.10.2:8000';
-  static const String baseUrl = 'http://lumina-library.test:82'; // laragon
+  /// Delegates to [NetworkConfig] — the single source of truth for every
+  /// network endpoint (API + WebSocket). Change the IP/host there, not here.
+  static String get baseUrl => NetworkConfig.apiBaseUrl;
 
-  static const String apiPrefix = '/api/v1';
-  static const Duration requestTimeout = Duration(seconds: 20);
+  static String get apiPrefix => NetworkConfig.apiPrefix;
+  static Duration get requestTimeout => NetworkConfig.requestTimeout;
 
   static Future<String> getDeviceName() async {
     final deviceInfo = DeviceInfoPlugin();

@@ -156,7 +156,7 @@ class LuminaProfileHeaderCard extends StatelessWidget {
                 child: Image.network(
                   profile.avatarUrl,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) {
+                  errorBuilder: (_, _, _) {
                     return const Icon(
                       Icons.person_rounded,
                       color: LuminaColors.primary,

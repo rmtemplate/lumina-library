@@ -693,7 +693,7 @@ class _BorrowedBooksCard extends StatelessWidget {
                                 width: 44,
                                 height: 60,
                                 fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _CoverPlaceholder(),
+                                errorBuilder: (_, _, _) => _CoverPlaceholder(),
                               )
                             : _CoverPlaceholder(),
                       ),

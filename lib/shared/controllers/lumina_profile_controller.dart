@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:lumina_library/core/network/lumina_api_exception.dart';
 import 'package:lumina_library/core/routing/lumina_role_router.dart';
 import 'package:lumina_library/core/services/lumina_storage_service.dart';
+import 'package:lumina_library/core/services/websocket/websocket_service.dart';
 import 'package:lumina_library/features/auth/data/services/auth_api_service.dart';
 import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
 import '../../core/theme/lumina_colors.dart';
@@ -500,6 +501,7 @@ class LuminaProfileController extends GetxController {
     }
 
     LuminaStorageService.clearSession();
+    Get.find<WebSocketService>().disconnect();
     LuminaRoleRouter.goToLogin();
   }
 }

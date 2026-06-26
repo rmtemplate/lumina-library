@@ -6,6 +6,8 @@ import 'package:get/get.dart';
 import 'package:screen_protector/screen_protector.dart';
 
 import 'package:lumina_library/core/network/lumina_api_exception.dart';
+import 'package:lumina_library/core/services/websocket/websocket_event.dart';
+import 'package:lumina_library/core/services/websocket/websocket_service.dart';
 import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
@@ -337,7 +339,7 @@ class _LoanBookInfoCard extends StatelessWidget {
             child: Image.network(
               book.imageUrl,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) {
+              errorBuilder: (_, _, _) {
                 return const Icon(
                   Icons.menu_book_rounded,
                   color: LuminaColors.primary,
@@ -817,60 +819,149 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
   static final Map<String, DateTime> _qrExpiryCache = {};
 
   Timer? _countdownTimer;
+  StreamSubscription<WebSocketEvent>? _wsSubscription;
   CheckoutQrModel? _qr;
   bool _isLoading = true;
   bool _isRefreshing = false;
   bool _isExpired = false;
   int _secondsLeft = 0;
+  String? _invalidReason;
 
   String get _cacheKey =>
       '${widget.borrowingId}_${widget.isPickup ? "pickup" : "return"}';
+
+  String get _expectedQrType =>
+      widget.isPickup ? 'borrowing_pickup' : 'borrowing_return';
 
   @override
   void initState() {
     super.initState();
     _fetchQr();
     unawaited(_enableScreenProtection());
+    _listenToRealtimeEvents();
   }
 
   @override
   void dispose() {
     _countdownTimer?.cancel();
+    _wsSubscription?.cancel();
     unawaited(_disableScreenProtection());
     super.dispose();
   }
 
-  Future<void> _fetchQr() async {
-    final cacheKey = _cacheKey;
-    final cached = _qrCache[cacheKey];
-    final cachedExpiry = _qrExpiryCache[cacheKey];
+  /// Live updates while this sheet is open — a QR generated/refreshed from
+  /// another device session, or the backend force-expiring it, reflects
+  /// here instantly instead of waiting for the local countdown or a manual
+  /// "Perbarui QR" tap. Scoped to THIS borrowing + QR type only.
+  void _listenToRealtimeEvents() {
+    if (!Get.isRegistered<WebSocketService>()) return;
 
-    if (cached != null && cachedExpiry != null) {
-      debugPrint('[QR] Existing QR found');
-      debugPrint('[QR] Expired At: $cachedExpiry');
-      debugPrint('[QR] Current Time: ${DateTime.now()}');
-      if (DateTime.now().isBefore(cachedExpiry)) {
-        debugPrint('[QR] QR still valid');
-        debugPrint('[QR] Using cached QR');
-        debugPrint('[QR] Skip refresh request');
-        final remaining =
-            cachedExpiry.difference(DateTime.now()).inSeconds.clamp(0, 86400);
-        if (mounted) {
-          setState(() {
-            _qr = cached;
-            _isLoading = false;
-          });
-          _startCountdown(remaining);
-        }
-        return;
+    _wsSubscription = Get.find<WebSocketService>().events.listen((event) {
+      if (event.borrowingId != widget.borrowingId) return;
+
+      switch (event.name) {
+        case 'qr.generated':
+        case 'qr.refreshed':
+          if (event.data['qr_type'] == _expectedQrType) {
+            debugPrint('[QR][WS] ${event.name} received for this sheet — refetching');
+            unawaited(_fetchQr(forceRefresh: true));
+          }
+        case 'qr.expired':
+          final qrIds = (event.data['qr_ids'] as List?)?.cast<dynamic>() ?? const [];
+          if (qrIds.contains(_qr?.id) || _qr == null) {
+            debugPrint('[QR][WS] qr.expired received for this sheet');
+            if (mounted) {
+              setState(() => _isExpired = true);
+              _countdownTimer?.cancel();
+            }
+          }
+        case 'borrowing.expired':
+          debugPrint('[QR][WS] borrowing.expired received for this sheet');
+          if (mounted) {
+            setState(() => _isExpired = true);
+            _countdownTimer?.cancel();
+          }
       }
-      debugPrint('[QR] QR expired');
+    });
+  }
+
+  String get _refreshEndpoint => widget.isPickup
+      ? '/borrowings/${widget.borrowingId}/qr/refresh'
+      : '/my-books/${widget.borrowingId}/return-qr/refresh';
+
+  /// Validates that [qr.imageBytes] decodes to a renderable raster image.
+  /// Logs the exact failure reason ([source] = cache | fresh-fetch |
+  /// manual-refresh) so we can pinpoint whether corruption happened during
+  /// base64 decode or because the backend emitted a non-raster format (SVG).
+  bool _validateQrImage(CheckoutQrModel qr, {required String source}) {
+    final bytes = qr.imageBytes;
+    if (bytes == null) {
+      debugPrint('[QR][VALIDATE][$source] FAILED — could not decode any bytes from imageDataUri');
+      return false;
+    }
+    debugPrint('[QR][VALIDATE][$source] Decoded ${bytes.length} bytes');
+    if (qr.isSvgContent) {
+      debugPrint('[QR][VALIDATE][$source] FAILED — payload is SVG markup; Image.memory cannot render SVG. Backend must emit PNG/JPEG.');
+      return false;
+    }
+    if (!qr.isRenderableRasterImage) {
+      final headLen = bytes.length < 8 ? bytes.length : 8;
+      final headHex = bytes.sublist(0, headLen).map((b) => b.toRadixString(16).padLeft(2, '0')).join(' ');
+      debugPrint('[QR][VALIDATE][$source] FAILED — unrecognized image signature. First bytes: $headHex');
+      return false;
+    }
+    debugPrint('[QR][VALIDATE][$source] OK — recognized raster image signature');
+    return true;
+  }
+
+  String _describeInvalidReason(CheckoutQrModel qr) {
+    if (qr.imageBytes == null) {
+      return 'Data QR dari server tidak dapat dibaca (base64 tidak valid atau terpotong).';
+    }
+    if (qr.isSvgContent) {
+      return 'Server mengirim QR dalam format SVG, namun aplikasi memerlukan format PNG/JPEG.';
+    }
+    return 'Format gambar QR dari server tidak dikenali atau rusak.';
+  }
+
+  Future<void> _fetchQr({bool forceRefresh = false}) async {
+    final cacheKey = _cacheKey;
+
+    if (!forceRefresh) {
+      final cached = _qrCache[cacheKey];
+      final cachedExpiry = _qrExpiryCache[cacheKey];
+
+      if (cached != null && cachedExpiry != null) {
+        debugPrint('[QR] Existing QR found');
+        debugPrint('[QR] Expired At: $cachedExpiry');
+        debugPrint('[QR] Current Time: ${DateTime.now()}');
+        if (DateTime.now().isBefore(cachedExpiry)) {
+          debugPrint('[QR] QR still valid');
+          if (_validateQrImage(cached, source: 'cache')) {
+            debugPrint('[QR] Using cached QR');
+            debugPrint('[QR] Skip refresh request');
+            if (mounted) {
+              setState(() {
+                _qr = cached;
+                _isLoading = false;
+                _invalidReason = null;
+              });
+              _startCountdown(cachedExpiry);
+            }
+            return;
+          }
+          debugPrint('[QR] Cached QR failed image validation — invalidating cache and requesting a fresh QR');
+          _qrCache.remove(cacheKey);
+          _qrExpiryCache.remove(cacheKey);
+          // Fall through to fetch a fresh QR below.
+        } else {
+          debugPrint('[QR] QR expired');
+        }
+      }
     }
 
     debugPrint('[QR] Requesting new QR');
-    debugPrint(
-      '[QR] Refresh endpoint: ${widget.isPickup ? "/borrowings/${widget.borrowingId}/qr/refresh" : "/my-books/${widget.borrowingId}/return-qr/refresh"}',
-    );
+    debugPrint('[QR] Refresh endpoint: $_refreshEndpoint');
     setState(() { _isLoading = true; });
     try {
       final service = Get.find<HomeApiService>();
@@ -878,6 +969,7 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
           ? await service.refreshPickupQr(widget.borrowingId)
           : await service.refreshReturnQr(widget.borrowingId);
       if (!mounted) return;
+      final isValid = _validateQrImage(qr, source: 'fresh-fetch');
       final expiry = _parseQrExpiry(qr);
       _qrCache[cacheKey] = qr;
       _qrExpiryCache[cacheKey] = expiry;
@@ -886,8 +978,9 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
       setState(() {
         _qr = qr;
         _isLoading = false;
+        _invalidReason = isValid ? null : _describeInvalidReason(qr);
       });
-      _startCountdown(qr.ttlSeconds);
+      if (isValid) _startCountdown(expiry);
     } on LuminaApiException catch (e) {
       if (!mounted) return;
       setState(() { _isLoading = false; });
@@ -904,18 +997,17 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
     // Clear cache so the upcoming API call is not short-circuited by _fetchQr
     _qrCache.remove(_cacheKey);
     _qrExpiryCache.remove(_cacheKey);
-    setState(() { _isRefreshing = true; _isExpired = false; });
+    setState(() { _isRefreshing = true; _isExpired = false; _invalidReason = null; });
     _countdownTimer?.cancel();
     debugPrint('[QR] Requesting new QR');
-    debugPrint(
-      '[QR] Refresh endpoint: ${widget.isPickup ? "/borrowings/${widget.borrowingId}/qr/refresh" : "/my-books/${widget.borrowingId}/return-qr/refresh"}',
-    );
+    debugPrint('[QR] Refresh endpoint: $_refreshEndpoint');
     try {
       final service = Get.find<HomeApiService>();
       final qr = widget.isPickup
           ? await service.refreshPickupQr(widget.borrowingId)
           : await service.refreshReturnQr(widget.borrowingId);
       if (!mounted) return;
+      final isValid = _validateQrImage(qr, source: 'manual-refresh');
       final expiry = _parseQrExpiry(qr);
       _qrCache[_cacheKey] = qr;
       _qrExpiryCache[_cacheKey] = expiry;
@@ -924,8 +1016,9 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
       setState(() {
         _qr = qr;
         _isRefreshing = false;
+        _invalidReason = isValid ? null : _describeInvalidReason(qr);
       });
-      _startCountdown(qr.ttlSeconds);
+      if (isValid) _startCountdown(expiry);
     } on LuminaApiException catch (e) {
       if (!mounted) return;
       setState(() { _isRefreshing = false; });
@@ -947,22 +1040,33 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
     return DateTime.now().add(Duration(seconds: qr.ttlSeconds));
   }
 
-  void _startCountdown(int ttlSeconds) {
+  /// Anchors the countdown to the absolute server [expiry] instant rather than
+  /// decrementing a local counter. Dart's `Timer.periodic` does not fire while
+  /// the app is backgrounded, so a decrement-based counter goes stale and can
+  /// show "still valid" after the app resumes even though the QR expired
+  /// server-side while suspended. Recomputing from the wall-clock difference
+  /// every tick makes the countdown self-correct as soon as it ticks again.
+  void _startCountdown(DateTime expiry) {
     _countdownTimer?.cancel();
-    _secondsLeft = ttlSeconds;
-    _isExpired = false;
+    _qrExpiryCache[_cacheKey] = expiry;
 
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    void tick() {
       if (!mounted) return;
+      final remaining = expiry.difference(DateTime.now()).inSeconds;
       setState(() {
-        if (_secondsLeft > 0) {
-          _secondsLeft--;
+        if (remaining > 0) {
+          _secondsLeft = remaining;
+          _isExpired = false;
         } else {
+          _secondsLeft = 0;
           _isExpired = true;
           _countdownTimer?.cancel();
         }
       });
-    });
+    }
+
+    tick();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) => tick());
   }
 
   String get _remainingTimeText {
@@ -1071,6 +1175,37 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
                   ],
                 ),
               )
+            else if (_invalidReason != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: LuminaSpacing.xl),
+                child: Column(
+                  children: [
+                    const Icon(Icons.broken_image_rounded, color: LuminaColors.error, size: 48),
+                    const SizedBox(height: LuminaSpacing.sm),
+                    Text(
+                      'QR tidak valid',
+                      style: LuminaTextStyles.bodyMd.copyWith(
+                        color: LuminaColors.error,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _invalidReason!,
+                      textAlign: TextAlign.center,
+                      style: LuminaTextStyles.labelMd.copyWith(
+                        color: LuminaColors.onSurfaceVariant,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: LuminaSpacing.md),
+                    OutlinedButton(
+                      onPressed: () => _fetchQr(forceRefresh: true),
+                      child: const Text('Coba Lagi'),
+                    ),
+                  ],
+                ),
+              )
             else ...[
               // Countdown pill
               Container(
@@ -1120,7 +1255,7 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
                 alignment: Alignment.center,
                 children: [
                   Opacity(
-                    opacity: _isExpired ? 0.22 : 1.0,
+                    opacity: (_isExpired || _isRefreshing) ? 0.22 : 1.0,
                     child: Container(
                       width: 220,
                       height: 220,
@@ -1136,10 +1271,50 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
                       ),
                       padding: const EdgeInsets.all(LuminaSpacing.sm),
                       child: _qr!.imageBytes != null
-                          ? Image.memory(_qr!.imageBytes!, fit: BoxFit.contain)
+                          ? Image.memory(
+                              _qr!.imageBytes!,
+                              fit: BoxFit.contain,
+                              errorBuilder: (context, error, stackTrace) {
+                                debugPrint('[QR][RENDER] Image.memory failed to decode at render time: $error');
+                                return const Icon(Icons.error_outline_rounded, size: 64, color: LuminaColors.error);
+                              },
+                            )
                           : const Icon(Icons.qr_code_2_rounded, size: 80, color: LuminaColors.primary),
                     ),
                   ),
+                  // Dim + overlay the QR while a refresh is in flight so a
+                  // soon-to-be-invalidated code is never presented as if it
+                  // were still scannable.
+                  if (_isRefreshing && !_isExpired)
+                    Container(
+                      width: 220,
+                      height: 220,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            width: 28,
+                            height: 28,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: LuminaSpacing.xs),
+                          Text(
+                            'Memperbarui...',
+                            style: LuminaTextStyles.titleMd.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (_isExpired)
                     Container(
                       width: 220,

@@ -278,7 +278,7 @@ class _LoginLogo extends StatelessWidget {
       child: Image.asset(
         logoAssetPath!,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) {
+        errorBuilder: (_, _, _) {
           return const _LoginLogoFallback();
         },
       ),
