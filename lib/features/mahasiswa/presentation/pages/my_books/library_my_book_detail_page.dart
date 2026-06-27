@@ -14,11 +14,12 @@ import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
 import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/library_location/library_route_map_page.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/pages/payment/library_payment_page.dart';
 import 'package:lumina_library/shared/models/book/library_my_book_item_model.dart';
 import 'package:lumina_library/shared/models/borrowing/checkout_result_model.dart';
 import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
 
-class LibraryMyBookDetailPage extends StatelessWidget {
+class LibraryMyBookDetailPage extends StatefulWidget {
   const LibraryMyBookDetailPage({
     super.key,
     required this.book,
@@ -26,13 +27,94 @@ class LibraryMyBookDetailPage extends StatelessWidget {
 
   final LibraryMyBookItemModel book;
 
+  @override
+  State<LibraryMyBookDetailPage> createState() => _LibraryMyBookDetailPageState();
+}
+
+class _LibraryMyBookDetailPageState extends State<LibraryMyBookDetailPage> {
+  late LibraryMyBookItemModel _book;
+  bool _isRefreshing = true;
+  String? _loadError;
+  StreamSubscription<WebSocketEvent>? _wsSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _book = widget.book;
+    unawaited(_enableScreenProtection());
+    _refetchBook(silent: false);
+    _listenToRealtimeEvents();
+  }
+
+  @override
+  void dispose() {
+    _wsSubscription?.cancel();
+    unawaited(_disableScreenProtection());
+    super.dispose();
+  }
+
+  /// Re-fetches this borrowing's detail so the page reflects the freshest
+  /// server state — called on first open, after returning from the payment
+  /// page, and whenever a relevant realtime event arrives. [silent] skips
+  /// the loading-skeleton flash for background refreshes (WS-driven), so
+  /// the page updates in place instead of flickering back to a skeleton.
+  Future<void> _refetchBook({bool silent = true}) async {
+    if (!silent && mounted) setState(() => _isRefreshing = true);
+
+    try {
+      final service = Get.find<HomeApiService>();
+      final fresh = await service.getMyBookDetail(widget.book.loanId);
+      if (!mounted) return;
+      setState(() {
+        _book = fresh;
+        _isRefreshing = false;
+        _loadError = null;
+      });
+    } on LuminaApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isRefreshing = false;
+        // Only surface a blocking error state if we never had any data at
+        // all — otherwise just keep showing the last good snapshot.
+        _loadError = null;
+      });
+      debugPrint('[MYBOOK_DETAIL] Refetch failed: ${e.displayMessage}');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isRefreshing = false);
+      debugPrint('[MYBOOK_DETAIL] Refetch failed: $e');
+    }
+  }
+
+  /// Live updates while this page is open — a payment completed (possibly
+  /// from another device), a return processed, or an overdue auto-flag
+  /// firing all refresh this page in place. No polling, no manual refresh.
+  void _listenToRealtimeEvents() {
+    if (!Get.isRegistered<WebSocketService>()) return;
+
+    _wsSubscription = Get.find<WebSocketService>().events.listen((event) {
+      if (event.borrowingId != widget.book.loanId) return;
+
+      switch (event.name) {
+        case 'payment.success':
+        case 'payment.pending':
+        case 'payment.expired':
+        case 'payment.cancelled':
+        case 'borrowing.overdue':
+        case 'return.success':
+        case 'qr.expired':
+          unawaited(_refetchBook());
+      }
+    });
+  }
+
   void _openRoutePage() {
     Get.to(
       () => LibraryRouteMapPage(
-        destinationName: book.effectiveReturnLocationName,
-        destinationAddress: book.effectiveReturnLocationDetail,
-        destinationLatitude: book.destinationLatitude,
-        destinationLongitude: book.destinationLongitude,
+        destinationName: _book.effectiveReturnLocationName,
+        destinationAddress: _book.effectiveReturnLocationDetail,
+        destinationLatitude: _book.destinationLatitude,
+        destinationLongitude: _book.destinationLongitude,
       ),
       transition: Transition.cupertino,
     );
@@ -41,8 +123,8 @@ class LibraryMyBookDetailPage extends StatelessWidget {
   void _showReturnQrBottomSheet() {
     Get.bottomSheet<void>(
       _BorrowingQrBottomSheet(
-        borrowingId: book.loanId,
-        borrowingCode: book.bookCode,
+        borrowingId: _book.loanId,
+        borrowingCode: _book.bookCode,
         isPickup: false,
       ),
       isScrollControlled: true,
@@ -50,14 +132,14 @@ class LibraryMyBookDetailPage extends StatelessWidget {
       barrierColor: Colors.black.withOpacity(0.42),
       isDismissible: true,
       enableDrag: true,
-    );
+    ).then((_) => _refetchBook());
   }
 
   void _showPickupQrBottomSheet() {
     Get.bottomSheet<void>(
       _BorrowingQrBottomSheet(
-        borrowingId: book.loanId,
-        borrowingCode: book.bookCode,
+        borrowingId: _book.loanId,
+        borrowingCode: _book.bookCode,
         isPickup: true,
       ),
       isScrollControlled: true,
@@ -65,57 +147,72 @@ class LibraryMyBookDetailPage extends StatelessWidget {
       barrierColor: Colors.black.withOpacity(0.42),
       isDismissible: true,
       enableDrag: true,
-    );
+    ).then((_) => _refetchBook());
   }
 
-  void _handlePayFine() {
-    LuminaToast.warning('Fitur pembayaran denda belum tersedia. Total: ${book.fineAmountText}.');
+  /// "Proceed to Payment" — pushes the dedicated Payment Detail page (never
+  /// a BottomSheet) and refetches on return regardless of outcome, so the
+  /// fine section / action button reflect the latest state immediately
+  /// without the member needing to do anything.
+  Future<void> _handleProceedToPayment() async {
+    await Get.to(
+      () => LibraryPaymentPage(
+        borrowingId: _book.loanId,
+        borrowingCode: _book.bookCode,
+      ),
+      transition: Transition.cupertino,
+    );
+    unawaited(_refetchBook());
+  }
+
+  Future<void> _enableScreenProtection() async {
+    if (kIsWeb) return;
+    try {
+      await ScreenProtector.preventScreenshotOn();
+      await ScreenProtector.protectDataLeakageOn();
+    } catch (_) {}
+  }
+
+  Future<void> _disableScreenProtection() async {
+    if (kIsWeb) return;
+    try {
+      await ScreenProtector.preventScreenshotOff();
+      await ScreenProtector.protectDataLeakageOff();
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
+    final book = _book;
     final showReturnQr = book.canReturn;
     final showPickupQr = book.canPickup || book.isAwaitingPickup;
     final showQrButton = showReturnQr || showPickupQr;
+    // Overdue / payment-required: hide every other borrowing action, show
+    // only the single "Proceed to Payment" primary button.
+    final mustPayFine = book.mustPayFine;
 
     return Scaffold(
       backgroundColor: LuminaColors.background,
-      bottomNavigationBar: showQrButton || book.mustPayFine
+      bottomNavigationBar: (showQrButton || mustPayFine)
           ? _LoanBottomActionBar(
+              mustPayFine: mustPayFine,
               showPickupQr: showPickupQr,
-              showPayFineButton: book.mustPayFine,
+              showReturnQr: showReturnQr,
               onShowQrTap: showPickupQr ? _showPickupQrBottomSheet : _showReturnQrBottomSheet,
-              onPayFineTap: _handlePayFine,
+              onPayFineTap: _handleProceedToPayment,
             )
           : null,
       body: Column(
         children: [
-          const _LoanDetailTopBar(),
+          _LoanDetailGradientHeader(book: book),
           Expanded(
-            child: ListView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                LuminaSpacing.marginMobile,
-                LuminaSpacing.lg,
-                LuminaSpacing.marginMobile,
-                120,
-              ),
-              children: [
-                _LoanStatusBanner(book: book),
-                const SizedBox(height: LuminaSpacing.lg),
-                _LoanBookInfoCard(book: book),
-                const SizedBox(height: LuminaSpacing.lg),
-                _LoanTimelineCard(book: book),
-                const SizedBox(height: LuminaSpacing.lg),
-                _ReturnLocationCard(
-                  book: book,
-                  onRouteTap: _openRoutePage,
-                ),
-                if (book.mustPayFine) ...[
-                  const SizedBox(height: LuminaSpacing.lg),
-                  _FineSummaryCard(book: book),
-                ],
-              ],
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: _isRefreshing && _loadError == null
+                  ? const _LoanDetailSkeleton(key: ValueKey('skeleton'))
+                  : _loadError != null
+                      ? _LoanDetailErrorState(key: const ValueKey('error'), onRetry: () => _refetchBook(silent: false))
+                      : _LoanDetailBody(key: const ValueKey('body'), book: book, mustPayFine: mustPayFine, onRouteTap: _openRoutePage),
             ),
           ),
         ],
@@ -124,29 +221,76 @@ class LibraryMyBookDetailPage extends StatelessWidget {
   }
 }
 
-class _LoanDetailTopBar extends StatelessWidget {
-  const _LoanDetailTopBar();
+class _LoanDetailBody extends StatelessWidget {
+  const _LoanDetailBody({
+    super.key,
+    required this.book,
+    required this.mustPayFine,
+    required this.onRouteTap,
+  });
+
+  final LibraryMyBookItemModel book;
+  final bool mustPayFine;
+  final VoidCallback onRouteTap;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: LuminaColors.surface,
-      elevation: 0,
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOut,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(offset: Offset(0, (1 - value) * 12), child: child),
+      ),
+      child: ListView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(
+          LuminaSpacing.marginMobile,
+          LuminaSpacing.lg,
+          LuminaSpacing.marginMobile,
+          120,
+        ),
+        children: [
+          _LoanStatusChip(book: book),
+          const SizedBox(height: LuminaSpacing.lg),
+          _LoanBookInfoCard(book: book),
+          const SizedBox(height: LuminaSpacing.lg),
+          _LoanTimelineCard(book: book),
+          if (!mustPayFine) ...[
+            const SizedBox(height: LuminaSpacing.lg),
+            _ReturnLocationCard(book: book, onRouteTap: onRouteTap),
+          ],
+          if (book.hasFine) ...[
+            const SizedBox(height: LuminaSpacing.lg),
+            _FineSummaryCard(book: book),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LoanDetailGradientHeader extends StatelessWidget {
+  const _LoanDetailGradientHeader({required this.book});
+
+  final LibraryMyBookItemModel book;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [LuminaColors.primary, LuminaColors.primary.withOpacity(0.85)],
+        ),
+      ),
       child: SafeArea(
         bottom: false,
         child: Container(
           height: 64,
-          padding: const EdgeInsets.symmetric(
-            horizontal: LuminaSpacing.marginMobile,
-          ),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: LuminaColors.outlineVariant.withOpacity(0.3),
-                width: 1,
-              ),
-            ),
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: LuminaSpacing.marginMobile),
           child: Row(
             children: [
               Material(
@@ -158,11 +302,7 @@ class _LoanDetailTopBar extends StatelessWidget {
                   child: const SizedBox(
                     width: 42,
                     height: 42,
-                    child: Icon(
-                      Icons.arrow_back_rounded,
-                      color: LuminaColors.primary,
-                      size: 24,
-                    ),
+                    child: Icon(Icons.arrow_back_rounded, color: Colors.white, size: 24),
                   ),
                 ),
               ),
@@ -173,7 +313,7 @@ class _LoanDetailTopBar extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: LuminaTextStyles.titleLg.copyWith(
-                    color: LuminaColors.primary,
+                    color: Colors.white,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.3,
                   ),
@@ -187,8 +327,103 @@ class _LoanDetailTopBar extends StatelessWidget {
   }
 }
 
-class _LoanStatusBanner extends StatelessWidget {
-  const _LoanStatusBanner({
+class _LoanDetailSkeleton extends StatelessWidget {
+  const _LoanDetailSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(
+        LuminaSpacing.marginMobile,
+        LuminaSpacing.lg,
+        LuminaSpacing.marginMobile,
+        120,
+      ),
+      children: const [
+        _SkeletonBlock(height: 40, borderRadius: LuminaRadius.lg),
+        SizedBox(height: LuminaSpacing.lg),
+        _SkeletonBlock(height: 144, borderRadius: LuminaRadius.xl),
+        SizedBox(height: LuminaSpacing.lg),
+        _SkeletonBlock(height: 140, borderRadius: LuminaRadius.xl),
+        SizedBox(height: LuminaSpacing.lg),
+        _SkeletonBlock(height: 100, borderRadius: LuminaRadius.xl),
+      ],
+    );
+  }
+}
+
+class _SkeletonBlock extends StatefulWidget {
+  const _SkeletonBlock({required this.height, required this.borderRadius});
+
+  final double height;
+  final double borderRadius;
+
+  @override
+  State<_SkeletonBlock> createState() => _SkeletonBlockState();
+}
+
+class _SkeletonBlockState extends State<_SkeletonBlock> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final t = _controller.value;
+        return Container(
+          height: widget.height,
+          decoration: BoxDecoration(
+            color: Color.lerp(LuminaColors.surfaceContainerLow, LuminaColors.surfaceContainerHigh, t),
+            borderRadius: BorderRadius.circular(widget.borderRadius),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _LoanDetailErrorState extends StatelessWidget {
+  const _LoanDetailErrorState({super.key, required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(LuminaSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_rounded, size: 56, color: LuminaColors.outline),
+            const SizedBox(height: LuminaSpacing.sm),
+            Text(
+              'Gagal memuat detail peminjaman.',
+              textAlign: TextAlign.center,
+              style: LuminaTextStyles.bodyMd.copyWith(color: LuminaColors.onSurfaceVariant),
+            ),
+            const SizedBox(height: LuminaSpacing.md),
+            OutlinedButton(onPressed: onRetry, child: const Text('Coba Lagi')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoanStatusChip extends StatelessWidget {
+  const _LoanStatusChip({
     required this.book,
   });
 
@@ -206,7 +441,7 @@ class _LoanStatusBanner extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(LuminaRadius.lg),
+        borderRadius: BorderRadius.circular(LuminaRadius.full),
         border: Border.all(
           color: statusColor.withOpacity(0.2),
           width: 1,
@@ -661,7 +896,7 @@ class _FineSummaryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Fine Payment Required',
+                  book.mustPayFine ? 'Payment Required' : 'Outstanding Fine',
                   style: LuminaTextStyles.bodyMd.copyWith(
                     color: LuminaColors.onErrorContainer,
                     fontWeight: FontWeight.w900,
@@ -675,15 +910,17 @@ class _FineSummaryCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  'Please show the QR code and complete the fine payment at the return desk.',
-                  style: LuminaTextStyles.labelMd.copyWith(
-                    color: LuminaColors.onErrorContainer.withOpacity(0.78),
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
+                if (book.mustPayFine) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    'Complete the payment below to continue.',
+                    style: LuminaTextStyles.labelMd.copyWith(
+                      color: LuminaColors.onErrorContainer.withOpacity(0.78),
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -695,21 +932,88 @@ class _FineSummaryCard extends StatelessWidget {
 
 class _LoanBottomActionBar extends StatelessWidget {
   const _LoanBottomActionBar({
+    required this.mustPayFine,
     required this.showPickupQr,
-    required this.showPayFineButton,
+    required this.showReturnQr,
     required this.onShowQrTap,
     required this.onPayFineTap,
   });
 
+  final bool mustPayFine;
   final bool showPickupQr;
-  final bool showPayFineButton;
+  final bool showReturnQr;
   final VoidCallback onShowQrTap;
   final VoidCallback onPayFineTap;
 
   @override
   Widget build(BuildContext context) {
-    final qrLabel = showPickupQr ? 'QR Pengambilan' : 'QR Pengembalian';
+    // Overdue / payment-required: ONE primary button, nothing else — the
+    // member cannot generate a Return QR until payment succeeds (the
+    // backend enforces this too — see MyBookService::refreshReturnQr on
+    // the backend — this is UI-side reinforcement, not the only guard).
+    if (mustPayFine) {
+      return _AnimatedBottomBar(
+        child: SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: onPayFineTap,
+            icon: const Icon(Icons.payment_rounded, size: 20),
+            label: Text(
+              'Proceed to Payment',
+              style: LuminaTextStyles.titleSm.copyWith(color: Colors.white, fontWeight: FontWeight.w900),
+            ),
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: LuminaColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LuminaRadius.full)),
+            ),
+          ),
+        ),
+      );
+    }
 
+    final qrLabel = showPickupQr ? 'QR Pengambilan' : 'Generate Return QR';
+
+    return _AnimatedBottomBar(
+      child: SizedBox(
+        width: double.infinity,
+        height: 50,
+        child: OutlinedButton.icon(
+          onPressed: onShowQrTap,
+          icon: const Icon(Icons.qr_code_2_rounded, size: 20),
+          label: Text(
+            qrLabel,
+            style: LuminaTextStyles.titleSm.copyWith(
+              color: LuminaColors.primary,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: LuminaColors.primary,
+            side: BorderSide(
+              color: LuminaColors.primary.withOpacity(0.28),
+              width: 1,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(LuminaRadius.full),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Thin chrome + entrance animation shared by both action-bar states above.
+class _AnimatedBottomBar extends StatelessWidget {
+  const _AnimatedBottomBar({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
     return Material(
       color: LuminaColors.surface.withOpacity(0.98),
       elevation: 18,
@@ -730,64 +1034,12 @@ class _LoanBottomActionBar extends StatelessWidget {
               ),
             ),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 50,
-                  child: OutlinedButton.icon(
-                    onPressed: onShowQrTap,
-                    icon: const Icon(Icons.qr_code_2_rounded, size: 20),
-                    label: Text(
-                      qrLabel,
-                      style: LuminaTextStyles.titleSm.copyWith(
-                        color: LuminaColors.primary,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: LuminaColors.primary,
-                      side: BorderSide(
-                        color: LuminaColors.primary.withOpacity(0.28),
-                        width: 1,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(LuminaRadius.full),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (showPayFineButton) ...[
-                const SizedBox(width: LuminaSpacing.sm),
-                Expanded(
-                  child: SizedBox(
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: onPayFineTap,
-                      icon: const Icon(Icons.payment_rounded, size: 20),
-                      label: Text(
-                        'Bayar Denda',
-                        style: LuminaTextStyles.titleSm.copyWith(
-                          color: LuminaColors.onError,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        elevation: 0,
-                        backgroundColor: LuminaColors.error,
-                        foregroundColor: LuminaColors.onError,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            LuminaRadius.full,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.92, end: 1),
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutBack,
+            builder: (context, scale, c) => Transform.scale(scale: scale, child: c),
+            child: child,
           ),
         ),
       ),
@@ -1404,352 +1656,6 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
         ),
       ),
     );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Placeholder to preserve compile from old dead code references
-class _SecureQrContent_PLACEHOLDER extends StatelessWidget {
-  const _SecureQrContent_PLACEHOLDER({
-    required this.book,
-    required this.qrToken,
-    required this.expired,
-    required this.remainingTimeText,
-    required this.generatedAt,
-    required this.expiredAt,
-    required this.onRegenerateTap,
-  });
-
-  final LibraryMyBookItemModel book;
-  final String qrToken;
-  final bool expired;
-  final String remainingTimeText;
-  final DateTime generatedAt;
-  final DateTime expiredAt;
-  final VoidCallback onRegenerateTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          'Return QR Code',
-          textAlign: TextAlign.center,
-          style: LuminaTextStyles.titleLg.copyWith(
-            color: LuminaColors.primary,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: LuminaSpacing.sm),
-        Text(
-          book.mustPayFine
-              ? 'Show this QR code to the librarian. Since this loan is overdue, the fine must also be paid.'
-              : 'Show this QR code to the librarian to complete your book return.',
-          textAlign: TextAlign.center,
-          style: LuminaTextStyles.bodyMd.copyWith(
-            color: LuminaColors.onSurfaceVariant,
-            height: 1.4,
-          ),
-        ),
-        const SizedBox(height: LuminaSpacing.md),
-        _QrExpiryBadge(
-          expired: expired,
-          remainingTimeText: remainingTimeText,
-        ),
-        const SizedBox(height: LuminaSpacing.lg),
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Opacity(
-              opacity: expired ? 0.22 : 1,
-              child: Container(
-                padding: const EdgeInsets.all(LuminaSpacing.md),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(LuminaRadius.xl),
-                  border: Border.all(
-                    color: expired
-                        ? LuminaColors.error.withOpacity(0.28)
-                        : LuminaColors.surfaceContainerHigh,
-                    width: 1,
-                  ),
-                ),
-                child: SizedBox(
-                  width: 190,
-                  height: 190,
-                  child: CustomPaint(
-                    painter: _PseudoQrPainter(seed: qrToken),
-                  ),
-                ),
-              ),
-            ),
-            if (expired)
-              Container(
-                width: 190,
-                padding: const EdgeInsets.all(LuminaSpacing.md),
-                decoration: BoxDecoration(
-                  color: LuminaColors.surface.withOpacity(0.96),
-                  borderRadius: BorderRadius.circular(LuminaRadius.xl),
-                  border: Border.all(
-                    color: LuminaColors.error.withOpacity(0.18),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.lock_clock_rounded,
-                      color: LuminaColors.error,
-                      size: 34,
-                    ),
-                    const SizedBox(height: LuminaSpacing.sm),
-                    Text(
-                      'QR Expired',
-                      textAlign: TextAlign.center,
-                      style: LuminaTextStyles.titleMd.copyWith(
-                        color: LuminaColors.error,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Generate a new QR code to continue.',
-                      textAlign: TextAlign.center,
-                      style: LuminaTextStyles.labelMd.copyWith(
-                        color: LuminaColors.onSurfaceVariant,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0,
-                      ),
-                    ),
-                    const SizedBox(height: LuminaSpacing.md),
-                    SizedBox(
-                      height: 38,
-                      child: ElevatedButton.icon(
-                        onPressed: onRegenerateTap,
-                        icon: const Icon(Icons.refresh_rounded, size: 18),
-                        label: Text(
-                          'Generate New QR',
-                          style: LuminaTextStyles.labelMd.copyWith(
-                            color: LuminaColors.onPrimary,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          elevation: 0,
-                          backgroundColor: LuminaColors.primary,
-                          foregroundColor: LuminaColors.onPrimary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(LuminaRadius.full),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: LuminaSpacing.md),
-        Text(
-          'Loan ID: ${book.loanId}',
-          style: LuminaTextStyles.labelMd.copyWith(
-            color: LuminaColors.outline,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Generated: ${_formatTime(generatedAt)} • Expires: ${_formatTime(expiredAt)}',
-          textAlign: TextAlign.center,
-          style: LuminaTextStyles.labelMd.copyWith(
-            color: LuminaColors.onSurfaceVariant,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0,
-          ),
-        ),
-        const SizedBox(height: LuminaSpacing.sm),
-        _ScreenshotProtectionNotice(),
-      ],
-    );
-  }
-
-  String _formatTime(DateTime value) {
-    final hour = value.hour.toString().padLeft(2, '0');
-    final minute = value.minute.toString().padLeft(2, '0');
-    final second = value.second.toString().padLeft(2, '0');
-
-    return '$hour:$minute:$second';
-  }
-}
-
-class _QrExpiryBadge extends StatelessWidget {
-  const _QrExpiryBadge({
-    required this.expired,
-    required this.remainingTimeText,
-  });
-
-  final bool expired;
-  final String remainingTimeText;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: LuminaSpacing.md,
-        vertical: LuminaSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: expired
-            ? LuminaColors.errorContainer.withOpacity(0.72)
-            : LuminaColors.secondaryContainer.withOpacity(0.42),
-        borderRadius: BorderRadius.circular(LuminaRadius.full),
-        border: Border.all(
-          color: expired
-              ? LuminaColors.error.withOpacity(0.18)
-              : LuminaColors.secondary.withOpacity(0.16),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            expired ? Icons.lock_clock_rounded : Icons.timer_rounded,
-            color: expired ? LuminaColors.error : LuminaColors.secondary,
-            size: 18,
-          ),
-          const SizedBox(width: LuminaSpacing.xs),
-          Text(
-            expired ? 'Expired' : 'Expires in $remainingTimeText',
-            style: LuminaTextStyles.labelMd.copyWith(
-              color: expired ? LuminaColors.error : LuminaColors.secondary,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ScreenshotProtectionNotice extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: LuminaSpacing.sm,
-        vertical: LuminaSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: LuminaColors.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(LuminaRadius.full),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.security_rounded,
-            color: LuminaColors.onSurfaceVariant,
-            size: 16,
-          ),
-          const SizedBox(width: LuminaSpacing.xs),
-          Text(
-            'Screenshot protection is enabled',
-            style: LuminaTextStyles.labelMd.copyWith(
-              color: LuminaColors.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PseudoQrPainter extends CustomPainter {
-  const _PseudoQrPainter({
-    required this.seed,
-  });
-
-  final String seed;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final backgroundPaint = Paint()..color = Colors.white;
-    final blockPaint = Paint()..color = LuminaColors.primary;
-    final lightPaint = Paint()..color = LuminaColors.surfaceContainerHigh;
-
-    canvas.drawRect(Offset.zero & size, backgroundPaint);
-
-    const count = 21;
-    final cell = size.width / count;
-
-    void drawFinder(int startX, int startY) {
-      final outer = Rect.fromLTWH(
-        startX * cell,
-        startY * cell,
-        cell * 7,
-        cell * 7,
-      );
-      final innerWhite = Rect.fromLTWH(
-        (startX + 1) * cell,
-        (startY + 1) * cell,
-        cell * 5,
-        cell * 5,
-      );
-      final innerBlack = Rect.fromLTWH(
-        (startX + 2) * cell,
-        (startY + 2) * cell,
-        cell * 3,
-        cell * 3,
-      );
-
-      canvas.drawRect(outer, blockPaint);
-      canvas.drawRect(innerWhite, backgroundPaint);
-      canvas.drawRect(innerBlack, blockPaint);
-    }
-
-    drawFinder(0, 0);
-    drawFinder(14, 0);
-    drawFinder(0, 14);
-
-    var hash = 0;
-    for (final codeUnit in seed.codeUnits) {
-      hash = (hash * 31 + codeUnit) & 0x7fffffff;
-    }
-
-    for (var y = 0; y < count; y++) {
-      for (var x = 0; x < count; x++) {
-        final inTopLeft = x < 7 && y < 7;
-        final inTopRight = x >= 14 && y < 7;
-        final inBottomLeft = x < 7 && y >= 14;
-
-        if (inTopLeft || inTopRight || inBottomLeft) continue;
-
-        final value = (x * 17 + y * 31 + hash) % 7;
-        if (value == 0 || value == 2 || value == 5) {
-          final rect = Rect.fromLTWH(
-            x * cell + 1,
-            y * cell + 1,
-            cell - 2,
-            cell - 2,
-          );
-          canvas.drawRect(rect, value == 5 ? lightPaint : blockPaint);
-        }
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PseudoQrPainter oldDelegate) {
-    return oldDelegate.seed != seed;
   }
 }
 

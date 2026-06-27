@@ -94,9 +94,18 @@ class LibraryMyBookItemModel {
   bool get isPending => status == LibraryMyBookStatus.pending;
   bool get isExpired => status == LibraryMyBookStatus.expired;
   bool get isCancelled => status == LibraryMyBookStatus.cancelled;
+  bool get isWaitingPayment => status == LibraryMyBookStatus.waitingPayment;
 
   bool get hasFine => fineAmount > 0;
-  bool get mustPayFine => isOverdue && hasFine;
+
+  /// True once the backend has auto-flagged this borrowing as needing
+  /// payment (status -> waiting_payment — see BorrowingOverdueService on
+  /// the backend, which now flips this automatically the instant a
+  /// borrowing becomes overdue, not only when staff later processes a
+  /// return). Also true for the "still active but overdue" display state,
+  /// before the backstop has had a chance to flip it, so the pay-fine
+  /// button still surfaces eagerly client-side.
+  bool get mustPayFine => isWaitingPayment || (isOverdue && hasFine);
 
   String get effectiveReturnLocationName {
     final value = returnLocationName;

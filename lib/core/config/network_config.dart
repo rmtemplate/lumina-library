@@ -19,8 +19,10 @@ class NetworkConfig {
   // ───────────────────────────────────────────────────────────────────────
   static const AppEnvironment environment = AppEnvironment.local;
 
-  static const String _localHost = '172.20.10.3';
-  static const int _localApiPort = 8000;
+  // static const String _localHost = '172.20.10.3';
+  // static const int _localApiPort = 8000;
+  static const String _localHost = 'lumina-library.test';
+  static const int _localApiPort = 82;
   static const int _localWsPort = 8080;
 
   // Reverb app key — must match REVERB_APP_KEY in the backend's .env.

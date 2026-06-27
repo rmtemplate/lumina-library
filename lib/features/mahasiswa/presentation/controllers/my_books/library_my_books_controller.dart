@@ -7,6 +7,7 @@ import 'package:lumina_library/core/services/websocket/websocket_event.dart';
 import 'package:lumina_library/core/services/websocket/websocket_service.dart';
 import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
 import 'package:lumina_library/shared/models/book/library_my_book_item_model.dart';
+import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
 import 'package:lumina_library/shared/widgets/popups/borrowing_expired_popup.dart';
 import 'package:lumina_library/shared/widgets/popups/pickup_failed_popup.dart';
 import 'package:lumina_library/shared/widgets/popups/pickup_success_popup.dart';
@@ -82,6 +83,24 @@ class LibraryMyBooksController extends GetxController {
           // bottom sheet itself (library_my_book_detail_page.dart) listens
           // independently for its own live countdown/image updates.
           unawaited(refresh());
+        case 'borrowing.overdue':
+          // Auto-flagged WAITING_PAYMENT — see BorrowingOverdueService on
+          // the backend. The payment page (if open) shows its own detail;
+          // here we just make sure the list reflects the new status.
+          unawaited(refresh());
+          LuminaToast.warning('Salah satu peminjaman Anda sudah lewat batas waktu dan perlu dibayar.');
+        case 'payment.success':
+          unawaited(refresh());
+          LuminaToast.success('Pembayaran berhasil dikonfirmasi.');
+        case 'payment.pending':
+        case 'payment.expired':
+        case 'payment.cancelled':
+          // The open payment page (if any) reacts to these itself with
+          // full detail — here we only need the list to stay in sync.
+          unawaited(refresh());
+        case 'return.success':
+          unawaited(refresh());
+          LuminaToast.success('Pengembalian buku berhasil diproses.');
       }
     });
   }

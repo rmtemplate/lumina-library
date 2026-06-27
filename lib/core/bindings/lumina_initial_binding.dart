@@ -5,6 +5,7 @@ import 'package:lumina_library/core/services/websocket/websocket_service.dart';
 import 'package:lumina_library/features/auth/data/controllers/auth_role_controller.dart';
 import 'package:lumina_library/features/auth/data/services/auth_api_service.dart';
 import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
+import 'package:lumina_library/features/mahasiswa/data/services/payment_api_service.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/cart/library_cart_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_catalog_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';
@@ -29,6 +30,10 @@ class LuminaInitialBinding extends Bindings {
     );
     Get.put(
       HomeApiService(Get.find<LuminaApiClient>()),
+      permanent: true,
+    );
+    Get.put(
+      PaymentApiService(Get.find<LuminaApiClient>()),
       permanent: true,
     );
 

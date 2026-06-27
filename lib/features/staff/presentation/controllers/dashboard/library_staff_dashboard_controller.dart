@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:lumina_library/features/staff/presentation/pages/payment/staff_payments_page.dart';
 import 'package:lumina_library/features/staff/presentation/pages/rack/rack_list_page.dart';
 
 import '../../../../../core/theme/lumina_colors.dart';
@@ -50,6 +51,11 @@ class LibraryStaffDashboardController extends GetxController {
       icon: Icons.assignment_ind_rounded,
       label: 'Peminjam',
     ),
+    StaffDashboardActionModel(
+      id: 'payment',
+      icon: Icons.payments_rounded,
+      label: 'Pembayaran',
+    ),
   ];
 
   final List<StaffDashboardActivityModel> recentActivities = [
@@ -95,6 +101,9 @@ class LibraryStaffDashboardController extends GetxController {
     switch (item.label) {
       case 'Atur Rak':
         Get.to(() => const RackListPage());
+        return;
+      case 'Pembayaran':
+        Get.to(() => const StaffPaymentsPage());
         return;
       default:
         LuminaToast.info('Fitur "${item.label}" belum tersedia.');
