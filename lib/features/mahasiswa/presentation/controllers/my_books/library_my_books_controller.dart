@@ -101,6 +101,13 @@ class LibraryMyBooksController extends GetxController {
         case 'return.success':
           unawaited(refresh());
           LuminaToast.success('Pengembalian buku berhasil diproses.');
+        case 'borrow.success':
+          // Staff just confirmed a walk-in counter borrow for this member
+          // (StaffBorrowCartService) — distinct from the self-checkout +
+          // QR-pickup flow above, but the list needs to reflect it the
+          // same way: refetch, no polling.
+          unawaited(refresh());
+          LuminaToast.success('Peminjaman baru berhasil diproses oleh staff.');
       }
     });
   }

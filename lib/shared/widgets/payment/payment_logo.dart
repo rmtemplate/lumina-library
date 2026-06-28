@@ -29,7 +29,7 @@ class PaymentLogo extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(size * 0.28),
       child: Image.asset(
-        'payment/${brand.asset}',
+        'assets/payment/${brand.asset}',
         width: size,
         height: size,
         fit: BoxFit.contain,

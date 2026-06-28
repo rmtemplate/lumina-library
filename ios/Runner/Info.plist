@@ -70,5 +70,9 @@
 	<string>Aplikasi membutuhkan akses kamera untuk scan QR peminjaman buku</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Aplikasi membutuhkan lokasi Anda untuk menampilkan rute ke perpustakaan.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Aplikasi membutuhkan akses galeri untuk menyimpan kode QR pembayaran.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Aplikasi membutuhkan akses galeri untuk memilih foto profil.</string>
 </dict>
 </plist>

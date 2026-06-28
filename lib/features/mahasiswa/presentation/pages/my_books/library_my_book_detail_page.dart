@@ -18,6 +18,7 @@ import 'package:lumina_library/features/mahasiswa/presentation/pages/payment/lib
 import 'package:lumina_library/shared/models/book/library_my_book_item_model.dart';
 import 'package:lumina_library/shared/models/borrowing/checkout_result_model.dart';
 import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
+import 'package:lumina_library/shared/widgets/payment/payment_method_bottom_sheet.dart';
 
 class LibraryMyBookDetailPage extends StatefulWidget {
   const LibraryMyBookDetailPage({
@@ -150,15 +151,27 @@ class _LibraryMyBookDetailPageState extends State<LibraryMyBookDetailPage> {
     ).then((_) => _refetchBook());
   }
 
-  /// "Proceed to Payment" — pushes the dedicated Payment Detail page (never
-  /// a BottomSheet) and refetches on return regardless of outcome, so the
-  /// fine section / action button reflect the latest state immediately
-  /// without the member needing to do anything.
+  /// "Proceed to Payment" — opens the payment-method BottomSheet first
+  /// (outstanding fine, payment status, method list, Continue). Only once
+  /// a method is confirmed there does the dedicated Payment Detail page
+  /// open for that specific transaction. Refetches on return regardless of
+  /// outcome, so the fine section / action button reflect the latest state
+  /// immediately without the member needing to do anything.
   Future<void> _handleProceedToPayment() async {
+    final payment = await PaymentMethodBottomSheet.show(
+      context,
+      borrowingId: _book.loanId,
+      borrowingCode: _book.bookCode,
+      outstandingFineAmount: _book.fineAmount.toDouble(),
+    );
+
+    if (payment == null) return;
+
     await Get.to(
       () => LibraryPaymentPage(
         borrowingId: _book.loanId,
         borrowingCode: _book.bookCode,
+        payment: payment,
       ),
       transition: Transition.cupertino,
     );

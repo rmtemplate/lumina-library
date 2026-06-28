@@ -2,30 +2,6 @@ import 'package:flutter/material.dart';
 
 import 'package:lumina_library/core/theme/lumina_colors.dart';
 
-class BorrowTrendData {
-  const BorrowTrendData({
-    required this.day,
-    required this.value,
-    this.isHighlighted = false,
-  });
-
-  final String day;
-  final int value;
-  final bool isHighlighted;
-}
-
-class PopularCategoryData {
-  const PopularCategoryData({
-    required this.name,
-    required this.percentage,
-    required this.color,
-  });
-
-  final String name;
-  final int percentage;
-  final Color color;
-}
-
 class MostBorrowedBookData {
   const MostBorrowedBookData({
     required this.title,

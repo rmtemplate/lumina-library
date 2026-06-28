@@ -33,7 +33,9 @@ class LibraryStaffDashboardPage extends StatelessWidget {
             constraints: const BoxConstraints(
               maxWidth: 1280,
             ),
-            child: ListView(
+            child: RefreshIndicator(
+              onRefresh: dashboardController.refreshDashboard,
+              child: ListView(
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.only(
                 top: LuminaSpacing.sm,
@@ -80,6 +82,7 @@ class LibraryStaffDashboardPage extends StatelessWidget {
                   items: dashboardController.recentActivities,
                 ),
               ],
+              ),
             ),
           ),
         ),

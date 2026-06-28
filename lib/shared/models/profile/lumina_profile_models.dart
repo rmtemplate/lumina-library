@@ -56,6 +56,14 @@ class LuminaProfileDataModel {
     this.staffLibraryName,
     this.staffLibraryAddress,
     this.staffLibrarySchedule,
+    this.address,
+    this.dateOfBirth,
+    this.gender,
+    this.membershipStatus = 'active',
+    this.totalBorrowed = 0,
+    this.activeBorrowings = 0,
+    this.totalReturned = 0,
+    this.joinedAt,
   });
 
   final String id;
@@ -76,6 +84,20 @@ class LuminaProfileDataModel {
   final String? staffLibraryName;
   final String? staffLibraryAddress;
   final String? staffLibrarySchedule;
+
+  final String? address;
+  final DateTime? dateOfBirth;
+
+  /// male | female | other
+  final String? gender;
+
+  /// active | inactive | restricted
+  final String membershipStatus;
+
+  final int totalBorrowed;
+  final int activeBorrowings;
+  final int totalReturned;
+  final DateTime? joinedAt;
 
   bool get isStaff => role == LuminaProfileRole.staff;
 
@@ -102,6 +124,14 @@ class LuminaProfileDataModel {
     String? staffLibraryName,
     String? staffLibraryAddress,
     String? staffLibrarySchedule,
+    String? address,
+    DateTime? dateOfBirth,
+    String? gender,
+    String? membershipStatus,
+    int? totalBorrowed,
+    int? activeBorrowings,
+    int? totalReturned,
+    DateTime? joinedAt,
   }) {
     return LuminaProfileDataModel(
       id: id ?? this.id,
@@ -120,6 +150,14 @@ class LuminaProfileDataModel {
       staffLibraryName: staffLibraryName ?? this.staffLibraryName,
       staffLibraryAddress: staffLibraryAddress ?? this.staffLibraryAddress,
       staffLibrarySchedule: staffLibrarySchedule ?? this.staffLibrarySchedule,
+      address: address ?? this.address,
+      dateOfBirth: dateOfBirth ?? this.dateOfBirth,
+      gender: gender ?? this.gender,
+      membershipStatus: membershipStatus ?? this.membershipStatus,
+      totalBorrowed: totalBorrowed ?? this.totalBorrowed,
+      activeBorrowings: activeBorrowings ?? this.activeBorrowings,
+      totalReturned: totalReturned ?? this.totalReturned,
+      joinedAt: joinedAt ?? this.joinedAt,
     );
   }
 }

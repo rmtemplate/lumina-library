@@ -6,6 +6,8 @@ import 'package:lumina_library/features/auth/data/controllers/auth_role_controll
 import 'package:lumina_library/features/auth/data/services/auth_api_service.dart';
 import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
 import 'package:lumina_library/features/mahasiswa/data/services/payment_api_service.dart';
+import 'package:lumina_library/features/profile/data/services/profile_api_service.dart';
+import 'package:lumina_library/features/staff/data/services/staff_api_service.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/cart/library_cart_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_catalog_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';
@@ -34,6 +36,14 @@ class LuminaInitialBinding extends Bindings {
     );
     Get.put(
       PaymentApiService(Get.find<LuminaApiClient>()),
+      permanent: true,
+    );
+    Get.put(
+      ProfileApiService(Get.find<LuminaApiClient>()),
+      permanent: true,
+    );
+    Get.put(
+      StaffApiService(Get.find<LuminaApiClient>()),
       permanent: true,
     );
 

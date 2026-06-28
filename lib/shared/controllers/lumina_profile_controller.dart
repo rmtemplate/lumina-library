@@ -1,12 +1,22 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:lumina_library/core/network/lumina_api_exception.dart';
 import 'package:lumina_library/core/routing/lumina_role_router.dart';
 import 'package:lumina_library/core/services/lumina_storage_service.dart';
 import 'package:lumina_library/core/services/websocket/websocket_service.dart';
 import 'package:lumina_library/features/auth/data/services/auth_api_service.dart';
-import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/controllers/home/library_home_controller.dart';
+import 'package:lumina_library/features/profile/data/services/profile_api_service.dart';
+import 'package:lumina_library/features/profile/presentasion/pages/about_page.dart';
+import 'package:lumina_library/features/profile/presentasion/pages/change_password_page.dart';
+import 'package:lumina_library/features/profile/presentasion/pages/edit_profile_page.dart';
+import 'package:lumina_library/features/profile/presentasion/pages/payment_history_page.dart';
+import 'package:lumina_library/shared/models/profile/profile_model.dart';
 import '../../core/theme/lumina_colors.dart';
 import '../models/profile/lumina_profile_models.dart';
 import '../widgets/feedback/lumina_toast.dart';
@@ -90,6 +100,10 @@ class LuminaProfileController extends GetxController {
 
   final Rx<LuminaProfileDataModel> profile = _dummyUserProfile.obs;
   final RxBool isLoading = false.obs;
+  final RxBool hasError = false.obs;
+  final RxBool isUploadingPhoto = false.obs;
+
+  ProfileApiService get _service => Get.find<ProfileApiService>();
 
   @override
   void onInit() {
@@ -101,19 +115,44 @@ class LuminaProfileController extends GetxController {
   }
 
   Future<void> _loadProfileFromApi() async {
-    if (role == LuminaProfileRole.staff) return;
+    isLoading.value = true;
+    hasError.value = false;
     try {
-      final apiProfile = await Get.find<HomeApiService>().getProfile();
-      profile.value = profile.value.copyWith(
-        id: apiProfile.id.isNotEmpty ? apiProfile.id : null,
-        fullname: apiProfile.fullname.isNotEmpty ? apiProfile.fullname : null,
-        email: apiProfile.email.isNotEmpty ? apiProfile.email : null,
-        avatarUrl: apiProfile.avatarUrl,
-        memberCode: apiProfile.memberCode,
-      );
+      final apiProfile = await _service.getProfile();
+      profile.value = _mergeApiProfile(profile.value, apiProfile);
     } catch (_) {
-      // fallback ke dummy — tidak perlu crash
+      // Tetap tampilkan data dummy sebagai fallback, tapi tandai error agar
+      // UI bisa menawarkan tombol retry alih-alih diam-diam pakai data palsu.
+      hasError.value = true;
+    } finally {
+      isLoading.value = false;
     }
+  }
+
+  Future<void> refreshProfile() => _loadProfileFromApi();
+
+  LuminaProfileDataModel _mergeApiProfile(LuminaProfileDataModel current, ProfileModel api) {
+    return current.copyWith(
+      id: api.id.isNotEmpty ? api.id : null,
+      fullname: api.fullname.isNotEmpty ? api.fullname : null,
+      email: api.email.isNotEmpty ? api.email : null,
+      avatarUrl: api.avatarUrl,
+      memberCode: api.memberCode,
+      phone: api.phone,
+      institutionName: api.institutionName,
+      majorName: api.majorName,
+      currentLevel: api.currentLevel,
+      staffPosition: api.staffPosition,
+      staffLibraryName: api.staffLibraryName,
+      address: api.address,
+      dateOfBirth: api.dateOfBirth,
+      gender: api.gender,
+      membershipStatus: api.membershipStatus,
+      totalBorrowed: api.totalBorrowed,
+      activeBorrowings: api.activeBorrowings,
+      totalReturned: api.totalReturned,
+      joinedAt: api.joinedAt,
+    );
   }
 
   bool get isStaff => profile.value.role == LuminaProfileRole.staff;
@@ -133,6 +172,11 @@ class LuminaProfileController extends GetxController {
     final profileType = currentProfile.profileType;
 
     final rows = <LuminaProfileInfoRowModel>[
+      LuminaProfileInfoRowModel(
+        icon: Icons.badge_outlined,
+        label: isStaff ? 'Employee ID' : 'Student ID (NIM)',
+        value: currentProfile.memberCode?.trim().isNotEmpty == true ? currentProfile.memberCode! : '-',
+      ),
       LuminaProfileInfoRowModel(
         icon: Icons.email_outlined,
         label: 'Email',
@@ -187,6 +231,64 @@ class LuminaProfileController extends GetxController {
       );
     }
 
+    if (currentProfile.address != null && currentProfile.address!.trim().isNotEmpty) {
+      rows.add(
+        LuminaProfileInfoRowModel(
+          icon: Icons.home_outlined,
+          label: 'Alamat',
+          value: currentProfile.address!,
+        ),
+      );
+    }
+
+    if (currentProfile.dateOfBirth != null) {
+      final dob = currentProfile.dateOfBirth!;
+      rows.add(
+        LuminaProfileInfoRowModel(
+          icon: Icons.cake_outlined,
+          label: 'Tanggal Lahir',
+          value: '${dob.day.toString().padLeft(2, '0')}/${dob.month.toString().padLeft(2, '0')}/${dob.year}',
+        ),
+      );
+    }
+
+    if (currentProfile.gender != null && currentProfile.gender!.trim().isNotEmpty) {
+      rows.add(
+        LuminaProfileInfoRowModel(
+          icon: Icons.wc_outlined,
+          label: 'Jenis Kelamin',
+          value: switch (currentProfile.gender) {
+            'male' => 'Laki-laki',
+            'female' => 'Perempuan',
+            _ => 'Lainnya',
+          },
+        ),
+      );
+    }
+
+    rows.add(
+      LuminaProfileInfoRowModel(
+        icon: Icons.verified_user_outlined,
+        label: 'Membership Status',
+        value: switch (currentProfile.membershipStatus) {
+          'inactive' => 'Tidak Aktif',
+          'restricted' => 'Dibatasi',
+          _ => 'Aktif',
+        },
+      ),
+    );
+
+    if (currentProfile.joinedAt != null) {
+      final joined = currentProfile.joinedAt!;
+      rows.add(
+        LuminaProfileInfoRowModel(
+          icon: Icons.calendar_today_outlined,
+          label: 'Bergabung Sejak',
+          value: '${joined.day.toString().padLeft(2, '0')}/${joined.month.toString().padLeft(2, '0')}/${joined.year}',
+        ),
+      );
+    }
+
     return rows;
   }
 
@@ -223,33 +325,35 @@ class LuminaProfileController extends GetxController {
       ];
     }
 
+    final currentProfile = profile.value;
+
     return [
       LuminaProfileStatModel(
-        id: 'borrowed_books',
+        id: 'total_borrowed',
         icon: Icons.menu_book_rounded,
-        label: 'Buku Dipinjam',
-        value: '42',
+        label: 'Total Borrowed',
+        value: '${currentProfile.totalBorrowed}',
         backgroundColor: LuminaColors.primary.withOpacity(0.10),
         iconColor: LuminaColors.primary,
         valueColor: LuminaColors.primary,
       ),
       LuminaProfileStatModel(
-        id: 'active_books',
+        id: 'active_borrowings',
         icon: Icons.book_online_rounded,
-        label: 'Aktif',
-        value: '3',
+        label: 'Active Borrowings',
+        value: '${currentProfile.activeBorrowings}',
         backgroundColor: LuminaColors.secondary.withOpacity(0.12),
         iconColor: LuminaColors.secondary,
         valueColor: LuminaColors.primary,
       ),
       LuminaProfileStatModel(
-        id: 'total_fine',
-        icon: Icons.account_balance_wallet_rounded,
-        label: 'Total Denda',
-        value: 'Rp 0',
-        backgroundColor: LuminaColors.error.withOpacity(0.10),
-        iconColor: LuminaColors.error,
-        valueColor: LuminaColors.error,
+        id: 'total_returned',
+        icon: Icons.assignment_turned_in_rounded,
+        label: 'Total Returned',
+        value: '${currentProfile.totalReturned}',
+        backgroundColor: LuminaColors.secondary.withOpacity(0.10),
+        iconColor: LuminaColors.secondary,
+        valueColor: LuminaColors.secondary,
       ),
     ];
   }
@@ -258,17 +362,208 @@ class LuminaProfileController extends GetxController {
     LuminaToast.info('Halaman pengaturan belum tersedia.');
   }
 
-  void editProfilePhoto() {
-    LuminaToast.info('Fitur update foto profil belum tersedia.');
+  // ── Edit Profile Photo ───────────────────────────────────────────────────
+
+  /// Camera/Gallery picker → crop (square, compressed) → preview confirm →
+  /// upload. Each step can be cancelled by the user with no side effects.
+  Future<void> editProfilePhoto() async {
+    final source = await _pickImageSource();
+    if (source == null) return;
+
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: 90,
+      maxWidth: 2000,
+      maxHeight: 2000,
+    );
+    if (picked == null) return;
+
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      compressQuality: 85,
+      compressFormat: ImageCompressFormat.jpg,
+      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Sesuaikan Foto',
+          toolbarColor: LuminaColors.primary,
+          toolbarWidgetColor: Colors.white,
+          initAspectRatio: CropAspectRatioPreset.square,
+          lockAspectRatio: true,
+          cropFrameColor: LuminaColors.primary,
+          cropGridColor: LuminaColors.primary.withOpacity(0.4),
+        ),
+        IOSUiSettings(
+          title: 'Sesuaikan Foto',
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+        ),
+      ],
+    );
+    if (cropped == null) return;
+
+    final confirmed = await _confirmPhotoPreview(File(cropped.path));
+    if (confirmed != true) return;
+
+    await _uploadAvatar(File(cropped.path));
   }
+
+  Future<ImageSource?> _pickImageSource() {
+    return Get.bottomSheet<ImageSource>(
+      Container(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+        decoration: const BoxDecoration(
+          color: LuminaColors.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: LuminaColors.outlineVariant,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Ubah Foto Profil',
+                style: TextStyle(color: LuminaColors.primary, fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 16),
+              _PhotoSourceTile(
+                icon: Icons.camera_alt_rounded,
+                label: 'Ambil Foto (Kamera)',
+                onTap: () => Get.back(result: ImageSource.camera),
+              ),
+              const SizedBox(height: 8),
+              _PhotoSourceTile(
+                icon: Icons.photo_library_rounded,
+                label: 'Pilih dari Galeri',
+                onTap: () => Get.back(result: ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+    );
+  }
+
+  Future<bool?> _confirmPhotoPreview(File file) {
+    return Get.dialog<bool>(
+      Dialog(
+        backgroundColor: LuminaColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Preview Foto Profil',
+                style: TextStyle(color: LuminaColors.primary, fontSize: 16, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 16),
+              ClipOval(
+                child: Image.file(file, width: 160, height: 160, fit: BoxFit.cover),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Get.back(result: false),
+                      child: const Text('Batal'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Get.back(result: true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: LuminaColors.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                      ),
+                      child: const Text('Simpan'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  Future<void> _uploadAvatar(File file) async {
+    isUploadingPhoto.value = true;
+    try {
+      final updated = await _service.updateAvatar(file);
+      profile.value = _mergeApiProfile(profile.value, updated);
+      LuminaToast.success('Foto profil berhasil diperbarui.');
+    } on LuminaApiException catch (e) {
+      LuminaToast.error(e.displayMessage);
+    } catch (_) {
+      LuminaToast.error('Gagal memperbarui foto profil. Silakan coba lagi.');
+    } finally {
+      isUploadingPhoto.value = false;
+    }
+  }
+
+  // ── Edit Profile ─────────────────────────────────────────────────────────
+
+  Future<void> updateProfile({
+    String? fullname,
+    String? phone,
+    String? address,
+    DateTime? dateOfBirth,
+    String? gender,
+  }) async {
+    final updated = await _service.updateProfile(
+      fullname: fullname,
+      phone: phone,
+      address: address,
+      dateOfBirth: dateOfBirth,
+      gender: gender,
+    );
+    profile.value = _mergeApiProfile(profile.value, updated);
+  }
+
+  // ── Menu ─────────────────────────────────────────────────────────────────
 
   void handleMenuTap(LuminaProfileMenuItemModel item) {
     switch (item.id) {
       case 'update_profile_photo':
         editProfilePhoto();
         return;
+      case 'edit_profile':
+      case 'personal_information':
+        Get.to(() => EditProfilePage(controller: this));
+        return;
       case 'change_password':
-        _showChangePasswordSheet();
+        Get.to(() => const ChangePasswordPage());
+        return;
+      case 'borrowing_history':
+        if (Get.isRegistered<LibraryHomeController>()) {
+          Get.find<LibraryHomeController>().changeNavIndex(2);
+        }
+        return;
+      case 'payment_history':
+        Get.to(() => const PaymentHistoryPage());
+        return;
+      case 'about':
+        Get.to(() => const AboutPage());
         return;
       case 'logout':
         _confirmLogout();
@@ -276,121 +571,6 @@ class LuminaProfileController extends GetxController {
       default:
         LuminaToast.info(item.description ?? 'Menu ${item.label} belum tersedia.');
     }
-  }
-
-  void _showChangePasswordSheet() {
-    final currentCtrl = TextEditingController();
-    final newCtrl = TextEditingController();
-    final confirmCtrl = TextEditingController();
-    final isSaving = false.obs;
-
-    Get.bottomSheet(
-      Container(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          top: 24,
-          bottom: 20 + (Get.mediaQuery.viewInsets.bottom),
-        ),
-        decoration: const BoxDecoration(
-          color: LuminaColors.surface,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 42,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: LuminaColors.outlineVariant,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Ganti Password',
-                  style: TextStyle(
-                    color: LuminaColors.primary,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _PasswordField(controller: currentCtrl, label: 'Password Saat Ini'),
-                const SizedBox(height: 12),
-                _PasswordField(controller: newCtrl, label: 'Password Baru'),
-                const SizedBox(height: 12),
-                _PasswordField(controller: confirmCtrl, label: 'Konfirmasi Password Baru'),
-                const SizedBox(height: 24),
-                Obx(() => SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    onPressed: isSaving.value
-                        ? null
-                        : () async {
-                            if (currentCtrl.text.isEmpty ||
-                                newCtrl.text.isEmpty ||
-                                confirmCtrl.text.isEmpty) {
-                              LuminaToast.warning('Isi semua kolom password.');
-                              return;
-                            }
-                            if (newCtrl.text != confirmCtrl.text) {
-                              LuminaToast.warning('Konfirmasi password tidak sesuai.');
-                              return;
-                            }
-                            isSaving.value = true;
-                            try {
-                              await Get.find<HomeApiService>().updatePassword(
-                                currentPassword: currentCtrl.text,
-                                newPassword: newCtrl.text,
-                                confirmPassword: confirmCtrl.text,
-                              );
-                              Get.back<void>();
-                              LuminaToast.success('Password berhasil diperbarui.');
-                            } on LuminaApiException catch (e) {
-                              LuminaToast.error(e.displayMessage);
-                            } catch (_) {
-                              LuminaToast.error('Gagal memperbarui password.');
-                            } finally {
-                              isSaving.value = false;
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      elevation: 0,
-                      backgroundColor: LuminaColors.primary,
-                      foregroundColor: LuminaColors.onPrimary,
-                    ),
-                    child: isSaving.value
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            'Simpan Password',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                  ),
-                )),
-              ],
-            ),
-          ),
-        ),
-      ),
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-    );
   }
 
   void _confirmLogout() {
@@ -489,7 +669,6 @@ class LuminaProfileController extends GetxController {
   }
 
   Future<void> _executeLogout() async {
-
     Get.back(); // tutup bottom sheet
 
     try {
@@ -506,30 +685,33 @@ class LuminaProfileController extends GetxController {
   }
 }
 
-class _PasswordField extends StatefulWidget {
-  const _PasswordField({required this.controller, required this.label});
+class _PhotoSourceTile extends StatelessWidget {
+  const _PhotoSourceTile({required this.icon, required this.label, required this.onTap});
 
-  final TextEditingController controller;
+  final IconData icon;
   final String label;
-
-  @override
-  State<_PasswordField> createState() => _PasswordFieldState();
-}
-
-class _PasswordFieldState extends State<_PasswordField> {
-  bool _obscure = true;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: widget.controller,
-      obscureText: _obscure,
-      decoration: InputDecoration(
-        labelText: widget.label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        suffixIcon: IconButton(
-          icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-          onPressed: () => setState(() => _obscure = !_obscure),
+    return Material(
+      color: LuminaColors.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Icon(icon, color: LuminaColors.primary, size: 22),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: const TextStyle(color: LuminaColors.onSurface, fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+            ],
+          ),
         ),
       ),
     );

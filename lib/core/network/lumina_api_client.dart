@@ -128,6 +128,41 @@ class LuminaApiClient {
     );
   }
 
+  /// Multipart upload (avatar photo, etc.) — same auth/logging/parsing
+  /// pipeline as every other method, just a different request shape since
+  /// `http.MultipartRequest` can't reuse `_buildHeaders()`'s JSON
+  /// Content-Type (multipart sets its own boundary header instead).
+  Future<LuminaApiResponse<T>> postMultipart<T>(
+    String path, {
+    required String fileField,
+    required File file,
+    Map<String, String>? fields,
+    T Function(dynamic)? fromData,
+  }) async {
+    final uri = _uri(path);
+    final token = LuminaStorageService.getToken();
+    final headers = {
+      'Accept': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+
+    return _execute(
+      method: 'POST',
+      uri: uri,
+      headers: headers,
+      fromData: fromData,
+      send: () async {
+        final request = http.MultipartRequest('POST', uri)
+          ..headers.addAll(headers)
+          ..fields.addAll(fields ?? {})
+          ..files.add(await http.MultipartFile.fromPath(fileField, file.path));
+
+        final streamed = await request.send().timeout(AppConfig.requestTimeout);
+        return http.Response.fromStream(streamed);
+      },
+    );
+  }
+
   Future<LuminaApiResponse<T>> delete<T>(
     String path, {
     Map<String, dynamic>? body,

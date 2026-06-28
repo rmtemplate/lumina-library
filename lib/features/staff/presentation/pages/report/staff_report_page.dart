@@ -44,41 +44,43 @@ class StaffReportPage extends StatelessWidget {
           child: SafeArea(
             top: false,
             bottom: false,
-            child: ListView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(
-                LuminaSpacing.marginMobile,
-                LuminaSpacing.lg,
-                LuminaSpacing.marginMobile,
-                LuminaSpacing.xl,
+            child: RefreshIndicator(
+              onRefresh: reportController.reload,
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(
+                  LuminaSpacing.marginMobile,
+                  LuminaSpacing.lg,
+                  LuminaSpacing.marginMobile,
+                  LuminaSpacing.xl,
+                ),
+                children: [
+                  const _ReportHeader(
+                    title: 'Laporan Statistik',
+                    subtitle: 'Ringkasan performa perpustakaan',
+                  ),
+                  const SizedBox(height: LuminaSpacing.lg),
+                  _PeriodSelectorCard(
+                    period: reportController.periodLabel,
+                    onTap: () => _openPeriodSelector(context, reportController),
+                  ),
+                  const SizedBox(height: LuminaSpacing.lg),
+                  if (reportController.isLoading.value)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: LuminaSpacing.xl),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else ...[
+                    _SummaryCardsGrid(controller: reportController),
+                    const SizedBox(height: LuminaSpacing.lg),
+                    _PaymentMemberSummaryGrid(controller: reportController),
+                    const SizedBox(height: LuminaSpacing.lg),
+                    _MostBorrowedBooksCard(
+                      controller: reportController,
+                    ),
+                  ],
+                ],
               ),
-              children: [
-                const _ReportHeader(
-                  title: 'Laporan Statistik',
-                  subtitle: 'Ringkasan performa perpustakaan',
-                ),
-                const SizedBox(height: LuminaSpacing.lg),
-                _PeriodSelectorCard(
-                  period: reportController.selectedPeriod.value,
-                  onTap: () => _openPeriodSelector(context, reportController),
-                ),
-                const SizedBox(height: LuminaSpacing.lg),
-                const _SummaryCardsGrid(),
-                const SizedBox(height: LuminaSpacing.lg),
-                _BorrowTrendChartCard(
-                  trends: reportController.borrowTrends,
-                  onMoreTap: () {},
-                ),
-                const SizedBox(height: LuminaSpacing.lg),
-                _PopularCategoryCard(
-                  categories: reportController.popularCategories,
-                ),
-                const SizedBox(height: LuminaSpacing.lg),
-                _MostBorrowedBooksCard(
-                  books: reportController.mostBorrowedBooks,
-                  onViewAllTap: () {},
-                ),
-              ],
             ),
           ),
         ),
@@ -182,37 +184,37 @@ class _PeriodSelectorCard extends StatelessWidget {
   }
 }
 
+/// Borrow / Return / Overdue Report — driven by the backend's `loans` +
+/// `returns` sections.
 class _SummaryCardsGrid extends StatelessWidget {
-  const _SummaryCardsGrid();
+  const _SummaryCardsGrid({required this.controller});
+
+  final StaffReportController controller;
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       children: [
-        _TotalBorrowSummaryCard(),
-
-        SizedBox(height: LuminaSpacing.sm),
-
+        _TotalBorrowSummaryCard(controller: controller),
+        const SizedBox(height: LuminaSpacing.sm),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               child: _SmallSummaryCard(
-                label: 'Aktif',
-                value: '342',
-                footerIcon: Icons.book_rounded,
-                footerText: 'Buku',
+                label: 'Overdue',
+                value: '${controller.overdueLoans}',
+                footerIcon: Icons.warning_rounded,
+                footerText: 'Borrowing',
               ),
             ),
-
-            SizedBox(width: LuminaSpacing.sm),
-
+            const SizedBox(width: LuminaSpacing.sm),
             Expanded(
               child: _SmallSummaryCard(
-                label: 'Total Denda',
-                value: 'Rp 2.450k',
-                footerIcon: Icons.payments_rounded,
-                footerText: 'Terkumpul',
+                label: 'On-Time Return',
+                value: '${controller.onTimeReturnPct.toStringAsFixed(0)}%',
+                footerIcon: Icons.assignment_turned_in_rounded,
+                footerText: '${controller.totalReturns} returns',
               ),
             ),
           ],
@@ -222,8 +224,43 @@ class _SummaryCardsGrid extends StatelessWidget {
   }
 }
 
+/// Payment Report + Member Report — driven by `payments` + `members`.
+class _PaymentMemberSummaryGrid extends StatelessWidget {
+  const _PaymentMemberSummaryGrid({required this.controller});
+
+  final StaffReportController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _SmallSummaryCard(
+            label: 'Unpaid Fines',
+            value: controller.totalUnpaidFinesText,
+            footerIcon: Icons.payments_rounded,
+            footerText: '${controller.pendingPaymentsCount} pending',
+          ),
+        ),
+        const SizedBox(width: LuminaSpacing.sm),
+        Expanded(
+          child: _SmallSummaryCard(
+            label: 'New Members',
+            value: '${controller.newMembersInPeriod}',
+            footerIcon: Icons.group_rounded,
+            footerText: '${controller.totalMembers} total',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TotalBorrowSummaryCard extends StatelessWidget {
-  const _TotalBorrowSummaryCard();
+  const _TotalBorrowSummaryCard({required this.controller});
+
+  final StaffReportController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -247,16 +284,14 @@ class _TotalBorrowSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _UppercaseLabel(
-            text: 'Total Peminjaman',
-          ),
+          const _UppercaseLabel(text: 'Total Peminjaman'),
           const SizedBox(height: LuminaSpacing.base),
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
                 child: Text(
-                  '1,284',
+                  '${controller.totalLoans}',
                   style: LuminaTextStyles.displayLgMobile.copyWith(
                     color: LuminaColors.primary,
                     fontWeight: FontWeight.w900,
@@ -276,13 +311,13 @@ class _TotalBorrowSummaryCard extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
-                      Icons.trending_up_rounded,
+                      Icons.menu_book_rounded,
                       color: LuminaColors.onSecondaryContainer,
                       size: 14,
                     ),
                     const SizedBox(width: 3),
                     Text(
-                      '+12%',
+                      '${controller.activeLoans} aktif',
                       style: LuminaTextStyles.labelMd.copyWith(
                         color: LuminaColors.onSecondaryContainer,
                         fontWeight: FontWeight.w900,
@@ -316,7 +351,7 @@ class _SmallSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 154,
+      height: 134,
       padding: const EdgeInsets.all(LuminaSpacing.md),
       decoration: BoxDecoration(
         color: LuminaColors.surfaceContainerLowest,
@@ -337,9 +372,7 @@ class _SmallSummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _UppercaseLabel(text: label),
-
           const SizedBox(height: LuminaSpacing.xs),
-
           Text(
             value,
             maxLines: 1,
@@ -349,9 +382,7 @@ class _SmallSummaryCard extends StatelessWidget {
               fontWeight: FontWeight.w900,
             ),
           ),
-
           const Spacer(),
-
           Row(
             children: [
               Icon(
@@ -359,9 +390,7 @@ class _SmallSummaryCard extends StatelessWidget {
                 color: LuminaColors.onSurfaceVariant,
                 size: 15,
               ),
-
               const SizedBox(width: LuminaSpacing.xs),
-
               Expanded(
                 child: Text(
                   footerText,
@@ -382,158 +411,21 @@ class _SmallSummaryCard extends StatelessWidget {
   }
 }
 
-class _BorrowTrendChartCard extends StatelessWidget {
-  const _BorrowTrendChartCard({
-    required this.trends,
-    this.onMoreTap,
-  });
+/// Book Report — most-borrowed list, with client-side search by title.
+class _MostBorrowedBooksCard extends StatefulWidget {
+  const _MostBorrowedBooksCard({required this.controller});
 
-  final List<BorrowTrendData> trends;
-  final VoidCallback? onMoreTap;
+  final StaffReportController controller;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(LuminaSpacing.lg),
-      decoration: BoxDecoration(
-        color: LuminaColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(LuminaRadius.xl),
-        border: Border.all(
-          color: LuminaColors.outlineVariant,
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Tren Peminjaman',
-                  style: LuminaTextStyles.titleLg.copyWith(
-                    color: LuminaColors.primary,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              Material(
-                color: Colors.transparent,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  onTap: onMoreTap,
-                  customBorder: const CircleBorder(),
-                  child: const SizedBox(
-                    width: 34,
-                    height: 34,
-                    child: Icon(
-                      Icons.more_horiz_rounded,
-                      color: LuminaColors.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: LuminaSpacing.lg),
-          SizedBox(
-            height: 148,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: trends.map((item) {
-                return Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: LuminaSpacing.base,
-                    ),
-                    child: _AnimatedBarItem(data: item),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  State<_MostBorrowedBooksCard> createState() => _MostBorrowedBooksCardState();
 }
 
-class _AnimatedBarItem extends StatelessWidget {
-  const _AnimatedBarItem({
-    required this.data,
-  });
-
-  final BorrowTrendData data;
-
+class _MostBorrowedBooksCardState extends State<_MostBorrowedBooksCard> {
   @override
   Widget build(BuildContext context) {
-    final normalizedValue = data.value.clamp(0, 100) / 100;
+    final books = widget.controller.mostBorrowedBooks;
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: TweenAnimationBuilder<double>(
-              tween: Tween<double>(
-                begin: 0,
-                end: normalizedValue,
-              ),
-              duration: const Duration(milliseconds: 900),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, child) {
-                return FractionallySizedBox(
-                  heightFactor: value,
-                  alignment: Alignment.bottomCenter,
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: data.isHighlighted
-                          ? LuminaColors.primary
-                          : LuminaColors.surfaceContainerHighest,
-                      borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(LuminaRadius.sm),
-                        topRight: Radius.circular(LuminaRadius.sm),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        const SizedBox(height: LuminaSpacing.xs),
-        Text(
-          data.day,
-          style: LuminaTextStyles.labelMd.copyWith(
-            color: data.isHighlighted
-                ? LuminaColors.primary
-                : LuminaColors.onSurfaceVariant,
-            fontWeight: data.isHighlighted ? FontWeight.w900 : FontWeight.w700,
-            letterSpacing: 0,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PopularCategoryCard extends StatelessWidget {
-  const _PopularCategoryCard({
-    required this.categories,
-  });
-
-  final List<PopularCategoryData> categories;
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(LuminaSpacing.lg),
       decoration: BoxDecoration(
@@ -555,153 +447,44 @@ class _PopularCategoryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Kategori Paling Populer',
+            'Buku Paling Sering Dipinjam',
             style: LuminaTextStyles.titleLg.copyWith(
               color: LuminaColors.primary,
               fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: LuminaSpacing.md),
-          ...List.generate(categories.length, (index) {
-            final item = categories[index];
-
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: index == categories.length - 1 ? 0 : LuminaSpacing.md,
-              ),
-              child: _CategoryProgressItem(data: item),
-            );
-          }),
-        ],
-      ),
-    );
-  }
-}
-
-class _CategoryProgressItem extends StatelessWidget {
-  const _CategoryProgressItem({
-    required this.data,
-  });
-
-  final PopularCategoryData data;
-
-  @override
-  Widget build(BuildContext context) {
-    final value = data.percentage.clamp(0, 100) / 100;
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                data.name,
-                style: LuminaTextStyles.bodyMd.copyWith(
-                  color: LuminaColors.onSurface,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            Text(
-              '${data.percentage}%',
-              style: LuminaTextStyles.bodyMd.copyWith(
-                color: LuminaColors.onSurfaceVariant,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: LuminaSpacing.xs),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(LuminaRadius.full),
-          child: TweenAnimationBuilder<double>(
-            tween: Tween<double>(
-              begin: 0,
-              end: value,
-            ),
-            duration: const Duration(milliseconds: 900),
-            curve: Curves.easeOutCubic,
-            builder: (context, animatedValue, child) {
-              return LinearProgressIndicator(
-                value: animatedValue,
-                minHeight: 8,
-                backgroundColor: LuminaColors.surfaceContainer,
-                valueColor: AlwaysStoppedAnimation<Color>(data.color),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MostBorrowedBooksCard extends StatelessWidget {
-  const _MostBorrowedBooksCard({
-    required this.books,
-    this.onViewAllTap,
-  });
-
-  final List<MostBorrowedBookData> books;
-  final VoidCallback? onViewAllTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(LuminaSpacing.lg),
-      decoration: BoxDecoration(
-        color: LuminaColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(LuminaRadius.xl),
-        border: Border.all(
-          color: LuminaColors.outlineVariant,
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Buku Paling Sering Dipinjam',
-                  style: LuminaTextStyles.titleLg.copyWith(
-                    color: LuminaColors.primary,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              TextButton(
-                onPressed: onViewAllTap,
-                child: Text(
-                  'Lihat Semua',
-                  style: LuminaTextStyles.labelMd.copyWith(
-                    color: LuminaColors.primary,
-                    fontWeight: FontWeight.w900,
-                    decoration: TextDecoration.underline,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-            ],
-          ),
           const SizedBox(height: LuminaSpacing.sm),
-          ...List.generate(books.length, (index) {
-            final book = books[index];
-
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: index == books.length - 1 ? 0 : LuminaSpacing.md,
+          TextField(
+            onChanged: (value) => setState(() => widget.controller.setSearchQuery(value)),
+            decoration: InputDecoration(
+              hintText: 'Cari judul buku...',
+              prefixIcon: const Icon(Icons.search_rounded, size: 20),
+              isDense: true,
+              filled: true,
+              fillColor: LuminaColors.surfaceContainerLow,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(LuminaRadius.md), borderSide: BorderSide.none),
+            ),
+          ),
+          const SizedBox(height: LuminaSpacing.md),
+          if (books.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: LuminaSpacing.md),
+              child: Text(
+                'Tidak ada data untuk periode ini.',
+                style: LuminaTextStyles.bodyMd.copyWith(color: LuminaColors.onSurfaceVariant),
               ),
-              child: _MostBorrowedBookTile(data: book),
-            );
-          }),
+            )
+          else
+            ...List.generate(books.length, (index) {
+              final book = books[index];
+
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: index == books.length - 1 ? 0 : LuminaSpacing.md,
+                ),
+                child: _MostBorrowedBookTile(data: book),
+              );
+            }),
         ],
       ),
     );
@@ -717,8 +500,6 @@ class _MostBorrowedBookTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trendConfig = data.trend.config;
-
     return Row(
       children: [
         Container(
@@ -731,25 +512,12 @@ class _MostBorrowedBookTile extends StatelessWidget {
               color: LuminaColors.outlineVariant,
               width: 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
-              ),
-            ],
           ),
           clipBehavior: Clip.antiAlias,
-          child: Image.network(
-            data.imageUrl,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              return const Icon(
-                Icons.menu_book_rounded,
-                color: LuminaColors.primary,
-                size: 28,
-              );
-            },
+          child: const Icon(
+            Icons.menu_book_rounded,
+            color: LuminaColors.primary,
+            size: 28,
           ),
         ),
         const SizedBox(width: LuminaSpacing.md),
@@ -777,11 +545,6 @@ class _MostBorrowedBookTile extends StatelessWidget {
               ),
             ],
           ),
-        ),
-        Icon(
-          trendConfig.icon,
-          color: trendConfig.color,
-          size: 24,
         ),
       ],
     );
@@ -815,19 +578,10 @@ class _PeriodSelectorSheet extends StatelessWidget {
 
   final String selectedPeriod;
 
-  static const List<String> _periods = [
-    'Januari 2023',
-    'Februari 2023',
-    'Maret 2023',
-    'April 2023',
-    'Mei 2023',
-    'Juni 2023',
-    'Juli 2023',
-    'Agustus 2023',
-    'September 2023',
-    'Oktober 2023',
-    'November 2023',
-    'Desember 2023',
+  static const List<({String value, String label})> _periods = [
+    (value: 'week', label: 'This Week'),
+    (value: 'month', label: 'This Month'),
+    (value: 'year', label: 'This Year'),
   ];
 
   @override
@@ -871,47 +625,25 @@ class _PeriodSelectorSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: LuminaSpacing.md),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: _periods.length,
-                separatorBuilder: (_, _) => const Divider(
-                  height: 1,
-                  color: LuminaColors.surfaceVariant,
-                ),
-                itemBuilder: (context, index) {
-                  final period = _periods[index];
-                  final isSelected = selectedPeriod == period;
+            ..._periods.map((period) {
+              final isSelected = selectedPeriod == period.value;
 
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      period,
-                      style: LuminaTextStyles.bodyLg.copyWith(
-                        color: isSelected
-                            ? LuminaColors.primary
-                            : LuminaColors.onSurface,
-                        fontWeight:
-                            isSelected ? FontWeight.w900 : FontWeight.w600,
-                      ),
-                    ),
-                    trailing: isSelected
-                        ? const Icon(
-                            Icons.check_circle_rounded,
-                            color: LuminaColors.secondary,
-                          )
-                        : null,
-                    onTap: () {
-                      Navigator.of(context).pop(period);
-                    },
-                  );
-                },
-              ),
-            ),
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  period.label,
+                  style: LuminaTextStyles.bodyLg.copyWith(
+                    color: isSelected ? LuminaColors.primary : LuminaColors.onSurface,
+                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                  ),
+                ),
+                trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: LuminaColors.secondary) : null,
+                onTap: () => Navigator.of(context).pop(period.value),
+              );
+            }),
           ],
         ),
       ),
     );
   }
 }
-

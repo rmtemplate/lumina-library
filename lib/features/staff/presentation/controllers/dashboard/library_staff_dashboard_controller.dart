@@ -1,7 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:lumina_library/features/staff/presentation/pages/payment/staff_payments_page.dart';
-import 'package:lumina_library/features/staff/presentation/pages/rack/rack_list_page.dart';
+import 'package:intl/intl.dart';
+
+import 'package:lumina_library/core/services/websocket/websocket_event.dart';
+import 'package:lumina_library/core/services/websocket/websocket_service.dart';
+import 'package:lumina_library/features/staff/data/services/staff_api_service.dart';
+import 'package:lumina_library/features/staff/presentation/controllers/home/staff_home_controller.dart';
+import 'package:lumina_library/features/staff/presentation/pages/member/staff_member_registration_page.dart';
+import 'package:lumina_library/features/staff/presentation/pages/scan/staff_scan_page.dart';
 
 import '../../../../../core/theme/lumina_colors.dart';
 import '../../../../../shared/widgets/feedback/lumina_toast.dart';
@@ -11,99 +19,189 @@ class LibraryStaffDashboardController extends GetxController {
   static const String avatarUrl =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuA1po-tORCqikYV7HsBNe5UI4EHzFgRnoAk0TLYuSXvPn_edw-_dVeMvafb9Z6mZO8O9JpLcWADq481YzkpMoXZf18v0NNFks98-FyWjn_HmppUMLmjJl8qKTXfrB9mmiPV8BlY5n4b4Yt6xeCfWi3pn6JRtz0SU5OWELm7dMsiY1_kCMB59IVGB15-wZ-Vs4BxmcCgy22G7dlZKVb1UIxQcv0s32ktfhayAbyIs6V33qIhg9zVr5N0XsklheER8RpuXiPwhMghRCK9';
 
-  final RxString staffName = 'Sarah'.obs;
-  final RxString todayText = 'Senin, 12 Agustus 2024'.obs;
-  final RxBool hasNotification = true.obs;
+  final RxString staffName = ''.obs;
+  final RxString todayText = DateFormat('EEEE, d MMMM yyyy', 'id_ID').format(DateTime.now()).obs;
+  final RxBool hasNotification = false.obs;
+  final RxBool isLoading = true.obs;
 
-  final List<StaffDashboardStatModel> stats = [
-    StaffDashboardStatModel(
-      id: 'borrowed_books',
-      icon: Icons.outbox_rounded,
-      label: 'Buku Dipinjam',
-      value: '320',
-      backgroundColor: LuminaColors.primary,
-      foregroundColor: LuminaColors.onPrimary,
-    ),
-    StaffDashboardStatModel(
-      id: 'overdue',
-      icon: Icons.warning_rounded,
-      label: 'Overdue',
-      value: '45',
-      backgroundColor: LuminaColors.errorContainer,
-      foregroundColor: LuminaColors.onErrorContainer,
-      borderColor: LuminaColors.error.withOpacity(0.12),
-    ),
-  ];
+  final RxList<StaffDashboardStatModel> stats = <StaffDashboardStatModel>[].obs;
+  final RxList<StaffDashboardActivityModel> recentActivities = <StaffDashboardActivityModel>[].obs;
 
   final List<StaffDashboardActionModel> quickActions = const [
-    StaffDashboardActionModel(
-      id: 'shelf',
-      icon: Icons.inventory_2_rounded,
-      label: 'Atur Rak',
-    ),
-    StaffDashboardActionModel(
-      id: 'member',
-      icon: Icons.badge_rounded,
-      label: 'Member',
-    ),
-    StaffDashboardActionModel(
-      id: 'borrower',
-      icon: Icons.assignment_ind_rounded,
-      label: 'Peminjam',
-    ),
-    StaffDashboardActionModel(
-      id: 'payment',
-      icon: Icons.payments_rounded,
-      label: 'Pembayaran',
-    ),
+    StaffDashboardActionModel(id: 'scan', icon: Icons.qr_code_scanner_rounded, label: 'Scan QR'),
+    StaffDashboardActionModel(id: 'borrow', icon: Icons.outbox_rounded, label: 'Borrow Books'),
+    StaffDashboardActionModel(id: 'return', icon: Icons.move_to_inbox_rounded, label: 'Return Books'),
+    StaffDashboardActionModel(id: 'register_member', icon: Icons.person_add_rounded, label: 'Register Member'),
+    StaffDashboardActionModel(id: 'reports', icon: Icons.analytics_rounded, label: 'Reports'),
   ];
 
-  final List<StaffDashboardActivityModel> recentActivities = [
-    StaffDashboardActivityModel(
-      id: 'activity-001',
-      icon: Icons.menu_book_rounded,
-      iconBackgroundColor: LuminaColors.secondaryContainer.withOpacity(0.20),
-      iconColor: LuminaColors.secondary,
-      titlePrefix: 'Ahmad',
-      highlightText: 'Sapiens',
-      titleSuffix: 'meminjam',
-      timeText: '2 menit yang lalu',
-      highlightItalic: true,
-    ),
-    StaffDashboardActivityModel(
-      id: 'activity-002',
-      icon: Icons.assignment_return_rounded,
-      iconBackgroundColor: LuminaColors.primaryContainer.withOpacity(0.10),
-      iconColor: LuminaColors.primary,
-      titlePrefix: 'Siti',
-      highlightText: 'Clean Code',
-      titleSuffix: 'mengembalikan',
-      timeText: '15 menit yang lalu',
-      highlightItalic: true,
-    ),
-    StaffDashboardActivityModel(
-      id: 'activity-003',
-      icon: Icons.person_add_rounded,
-      iconBackgroundColor: LuminaColors.tertiaryContainer.withOpacity(0.10),
-      iconColor: LuminaColors.tertiaryContainer,
-      titlePrefix: 'Anggota baru',
-      highlightText: 'Budi Santoso',
-      titleSuffix: 'terdaftar',
-      timeText: '1 jam yang lalu',
-    ),
-  ];
+  StreamSubscription<WebSocketEvent>? _wsSubscription;
+  String? _branchId;
+
+  @override
+  void onInit() {
+    super.onInit();
+    staffName.value = 'Staff';
+    _loadDashboard();
+  }
+
+  @override
+  void onClose() {
+    _wsSubscription?.cancel();
+    super.onClose();
+  }
+
+  Future<void> _loadDashboard() async {
+    isLoading.value = true;
+    try {
+      final summary = await Get.find<StaffApiService>().getDashboard();
+      staffName.value = summary.staffFirstName;
+      _branchId = summary.branchId;
+
+      stats.assignAll([
+        StaffDashboardStatModel(
+          id: 'total_books',
+          icon: Icons.menu_book_rounded,
+          label: 'Total Books',
+          value: '${summary.totalBooksCount}',
+          backgroundColor: LuminaColors.primary,
+          foregroundColor: LuminaColors.onPrimary,
+        ),
+        StaffDashboardStatModel(
+          id: 'active_borrowings',
+          icon: Icons.outbox_rounded,
+          label: 'Active Borrowings',
+          value: '${summary.activeCount}',
+          backgroundColor: LuminaColors.secondaryContainer,
+          foregroundColor: LuminaColors.onSecondaryContainer,
+        ),
+        StaffDashboardStatModel(
+          id: 'today_borrowings',
+          icon: Icons.today_rounded,
+          label: "Today's Borrowings",
+          value: '${summary.todayBorrowingsCount}',
+          backgroundColor: LuminaColors.primaryContainer,
+          foregroundColor: LuminaColors.onPrimaryContainer,
+        ),
+        StaffDashboardStatModel(
+          id: 'today_returns',
+          icon: Icons.assignment_return_rounded,
+          label: "Today's Returns",
+          value: '${summary.returnedTodayCount}',
+          backgroundColor: LuminaColors.secondaryContainer,
+          foregroundColor: LuminaColors.onSecondaryContainer,
+        ),
+        StaffDashboardStatModel(
+          id: 'overdue',
+          icon: Icons.warning_rounded,
+          label: 'Overdue Borrowings',
+          value: '${summary.overdueCount}',
+          backgroundColor: LuminaColors.errorContainer,
+          foregroundColor: LuminaColors.onErrorContainer,
+          borderColor: LuminaColors.error.withOpacity(0.12),
+        ),
+        StaffDashboardStatModel(
+          id: 'pending_payments',
+          icon: Icons.payments_rounded,
+          label: 'Pending Payments',
+          value: '${summary.pendingPaymentsCount}',
+          backgroundColor: LuminaColors.errorContainer,
+          foregroundColor: LuminaColors.onErrorContainer,
+          borderColor: LuminaColors.error.withOpacity(0.12),
+        ),
+      ]);
+
+      recentActivities.assignAll(summary.recentActivities.map((activity) => StaffDashboardActivityModel(
+            id: activity.borrowingId,
+            icon: _iconForStatus(activity.status),
+            iconBackgroundColor: _colorForStatus(activity.status).withOpacity(0.12),
+            iconColor: _colorForStatus(activity.status),
+            titlePrefix: activity.memberName,
+            highlightText: activity.borrowingCode,
+            titleSuffix: '· ${activity.itemsCount} buku',
+            timeText: _labelForStatus(activity.status),
+            highlightItalic: true,
+          )));
+
+      _listenToRealtimeEvents();
+    } catch (_) {
+      // Keep showing whatever was last loaded (or empty state) — the page
+      // itself doesn't block on this, and a toast here would be noisy on
+      // every WS-triggered silent refresh.
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> refreshDashboard() => _loadDashboard();
+
+  IconData _iconForStatus(String status) => switch (status) {
+        'awaiting_pickup' => Icons.hourglass_top_rounded,
+        'active' => Icons.menu_book_rounded,
+        'overdue' => Icons.warning_rounded,
+        'waiting_payment' => Icons.payments_rounded,
+        'returned' => Icons.assignment_return_rounded,
+        _ => Icons.circle_notifications_rounded,
+      };
+
+  Color _colorForStatus(String status) => switch (status) {
+        'overdue' || 'waiting_payment' => LuminaColors.error,
+        'returned' => LuminaColors.secondary,
+        _ => LuminaColors.primary,
+      };
+
+  String _labelForStatus(String status) => switch (status) {
+        'awaiting_pickup' => 'Menunggu pengambilan',
+        'active' => 'Sedang dipinjam',
+        'overdue' => 'Terlambat',
+        'waiting_payment' => 'Menunggu pembayaran',
+        'returned' => 'Sudah dikembalikan',
+        _ => status,
+      };
+
+  /// Subscribes to this branch's realtime channel so the dashboard updates
+  /// automatically on any borrow/return/payment/registration event —
+  /// no polling, no manual refresh. Branch ID only becomes known after the
+  /// first successful dashboard fetch, so this is wired up there rather
+  /// than in onInit().
+  void _listenToRealtimeEvents() {
+    if (_wsSubscription != null) return;
+    if (!Get.isRegistered<WebSocketService>()) return;
+    if (_branchId == null || _branchId!.isEmpty) return;
+
+    Get.find<WebSocketService>().subscribeToPrivateChannel('branch.$_branchId');
+
+    _wsSubscription = Get.find<WebSocketService>().events.listen((event) {
+      switch (event.name) {
+        case 'borrow.success':
+        case 'return.success':
+        case 'payment.success':
+        case 'member.registered':
+        case 'book.registered':
+        case 'pickup.success':
+          unawaited(_loadDashboard());
+      }
+    });
+  }
 
   void handleNotificationTap() {
     LuminaToast.info('Halaman notifikasi staff belum tersedia.');
   }
 
   void handleQuickActionTap(StaffDashboardActionModel item) {
-    switch (item.label) {
-      case 'Atur Rak':
-        Get.to(() => const RackListPage());
+    switch (item.id) {
+      case 'scan':
+      case 'borrow':
+      case 'return':
+        Get.to(() => const StaffScanPage());
         return;
-      case 'Pembayaran':
-        Get.to(() => const StaffPaymentsPage());
+      case 'register_member':
+        Get.to(() => const StaffMemberRegistrationPage());
+        return;
+      case 'reports':
+        if (Get.isRegistered<StaffHomeController>()) {
+          Get.find<StaffHomeController>().changeIndex(2);
+        }
         return;
       default:
         LuminaToast.info('Fitur "${item.label}" belum tersedia.');
@@ -111,6 +209,8 @@ class LibraryStaffDashboardController extends GetxController {
   }
 
   void handleSeeAllActivityTap() {
-    LuminaToast.info('Halaman aktivitas lengkap belum tersedia.');
+    if (Get.isRegistered<StaffHomeController>()) {
+      Get.find<StaffHomeController>().changeIndex(2);
+    }
   }
 }

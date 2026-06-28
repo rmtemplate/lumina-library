@@ -5,6 +5,7 @@ import '../../../core/theme/lumina_radius.dart';
 import '../../../core/theme/lumina_spacing.dart';
 import '../../../core/theme/lumina_text_styles.dart';
 import '../../models/profile/lumina_profile_models.dart';
+import 'profile_avatar.dart';
 
 class LuminaProfileTopBar extends StatelessWidget {
   const LuminaProfileTopBar({
@@ -115,11 +116,13 @@ class LuminaProfileHeaderCard extends StatelessWidget {
     required this.profile,
     required this.subtitle,
     this.onEditPhotoTap,
+    this.isUploadingPhoto = false,
   });
 
   final LuminaProfileDataModel profile;
   final String subtitle;
   final VoidCallback? onEditPhotoTap;
+  final bool isUploadingPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -128,74 +131,10 @@ class LuminaProfileHeaderCard extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: 104,
-          height: 104,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 104,
-                height: 104,
-                decoration: BoxDecoration(
-                  color: LuminaColors.surfaceContainerHigh,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: LuminaColors.surfaceVariant,
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Image.network(
-                  profile.avatarUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) {
-                    return const Icon(
-                      Icons.person_rounded,
-                      color: LuminaColors.primary,
-                      size: 46,
-                    );
-                  },
-                ),
-              ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Material(
-                  color: LuminaColors.primary,
-                  shape: const CircleBorder(),
-                  elevation: 3,
-                  child: InkWell(
-                    onTap: onEditPhotoTap,
-                    customBorder: const CircleBorder(),
-                    child: Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: LuminaColors.surface,
-                          width: 2,
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.edit_rounded,
-                        color: LuminaColors.onPrimary,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+        ProfileAvatar(
+          avatarUrl: profile.avatarUrl,
+          isUploading: isUploadingPhoto,
+          onEditTap: onEditPhotoTap,
         ),
         const SizedBox(height: LuminaSpacing.md),
         Text(
@@ -210,6 +149,19 @@ class LuminaProfileHeaderCard extends StatelessWidget {
             decorationColor: Colors.transparent,
           ),
         ),
+        if (subtitle.trim().isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: LuminaTextStyles.bodyMd.copyWith(
+              color: LuminaColors.secondary,
+              fontWeight: FontWeight.w700,
+              decoration: TextDecoration.none,
+              decorationColor: Colors.transparent,
+            ),
+          ),
+        ],
         if (memberCode.isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(
@@ -223,7 +175,51 @@ class LuminaProfileHeaderCard extends StatelessWidget {
             ),
           ),
         ],
+        const SizedBox(height: LuminaSpacing.xs),
+        _MembershipStatusChip(status: profile.membershipStatus),
       ],
+    );
+  }
+}
+
+class _MembershipStatusChip extends StatelessWidget {
+  const _MembershipStatusChip({required this.status});
+
+  final String status;
+
+  ({String label, Color color, IconData icon}) get _style => switch (status) {
+        'inactive' => (label: 'Inactive', color: LuminaColors.outline, icon: Icons.pause_circle_rounded),
+        'restricted' => (label: 'Restricted', color: LuminaColors.error, icon: Icons.block_rounded),
+        _ => (label: 'Active Member', color: LuminaColors.secondary, icon: Icons.verified_rounded),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final style = _style;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: LuminaSpacing.sm, vertical: 4),
+      decoration: BoxDecoration(
+        color: style.color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(LuminaRadius.full),
+        border: Border.all(color: style.color.withOpacity(0.24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(style.icon, size: 13, color: style.color),
+          const SizedBox(width: 4),
+          Text(
+            style.label,
+            style: LuminaTextStyles.labelMd.copyWith(
+              color: style.color,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

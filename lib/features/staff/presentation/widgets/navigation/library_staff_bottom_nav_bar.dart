@@ -26,6 +26,10 @@ class LibraryStaffBottomNavBar extends StatelessWidget {
       icon: Icons.analytics_rounded,
       label: 'Reports',
     ),
+    LuminaBottomNavItemModel(
+      icon: Icons.person_rounded,
+      label: 'Profile',
+    ),
   ];
 
   @override

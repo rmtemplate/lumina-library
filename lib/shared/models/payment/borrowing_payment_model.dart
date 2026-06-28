@@ -76,6 +76,16 @@ class BorrowingPaymentModel {
     return null;
   }
 
+  /// Method-specific "how to pay" copy — single source of truth so the
+  /// Payment Detail page doesn't duplicate this text per method section.
+  String get instructionsText => switch (paymentMethod) {
+        'qris' => 'Buka aplikasi e-wallet atau m-banking apa pun yang mendukung QRIS, lalu pindai (scan) kode di bawah ini.',
+        'gopay' => 'Buka aplikasi Gojek, pilih GoPay, lalu pindai kode QR atau ketuk tombol di bawah untuk membuka otomatis.',
+        'shopeepay' => 'Buka aplikasi Shopee, pilih ShopeePay, lalu pindai kode QR atau ketuk tombol di bawah untuk membuka otomatis.',
+        'mandiri_bill' => 'Buka ATM atau aplikasi Livin\' by Mandiri, pilih Bayar/Bill Payment, masukkan kode biller dan Bill Key di bawah.',
+        _ => 'Buka ATM, m-banking, atau internet banking, pilih Transfer ke Virtual Account, lalu masukkan nomor di bawah.',
+      };
+
   factory BorrowingPaymentModel.fromJson(Map<String, dynamic> json) {
     final rawActions = json['actions'] as List<dynamic>? ?? const [];
     final borrowing = json['borrowing'] as Map<String, dynamic>?;
