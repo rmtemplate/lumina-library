@@ -103,6 +103,12 @@ class LuminaProfileController extends GetxController {
   final RxBool hasError = false.obs;
   final RxBool isUploadingPhoto = false.obs;
 
+  /// Optimistic local file — set immediately after crop so the avatar shows
+  /// the new photo before the network URL is available (storage symlink may
+  /// not exist in dev). Cleared only on upload failure so it serves as a
+  /// fallback if the network URL never loads.
+  final Rx<File?> pendingAvatarFile = Rx<File?>(null);
+
   ProfileApiService get _service => Get.find<ProfileApiService>();
 
   @override
@@ -508,13 +514,18 @@ class LuminaProfileController extends GetxController {
 
   Future<void> _uploadAvatar(File file) async {
     isUploadingPhoto.value = true;
+    pendingAvatarFile.value = file; // show new photo immediately (optimistic)
     try {
       final updated = await _service.updateAvatar(file);
       profile.value = _mergeApiProfile(profile.value, updated);
+      // Keep pendingAvatarFile set — serves as fallback if the network URL
+      // fails to load (e.g. storage symlink missing in dev environment).
       LuminaToast.success('Foto profil berhasil diperbarui.');
     } on LuminaApiException catch (e) {
+      pendingAvatarFile.value = null; // revert: upload failed
       LuminaToast.error(e.displayMessage);
     } catch (_) {
+      pendingAvatarFile.value = null; // revert: upload failed
       LuminaToast.error('Gagal memperbarui foto profil. Silakan coba lagi.');
     } finally {
       isUploadingPhoto.value = false;

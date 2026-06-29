@@ -1,3 +1,4 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -74,6 +75,10 @@ class StaffReportPage extends StatelessWidget {
                     _SummaryCardsGrid(controller: reportController),
                     const SizedBox(height: LuminaSpacing.lg),
                     _PaymentMemberSummaryGrid(controller: reportController),
+                    const SizedBox(height: LuminaSpacing.lg),
+                    _BookStatusChart(controller: reportController),
+                    const SizedBox(height: LuminaSpacing.lg),
+                    _TopBooksProgressCard(controller: reportController),
                     const SizedBox(height: LuminaSpacing.lg),
                     _MostBorrowedBooksCard(
                       controller: reportController,
@@ -547,6 +552,211 @@ class _MostBorrowedBookTile extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+
+class _BookStatusChart extends StatelessWidget {
+  const _BookStatusChart({required this.controller});
+  final StaffReportController controller;
+
+  static const _statusColors = {
+    'available': LuminaColors.secondary,
+    'borrowed': LuminaColors.primary,
+    'overdue': LuminaColors.error,
+    'reserved': LuminaColors.onTertiaryContainer,
+    'maintenance': LuminaColors.onSurfaceVariant,
+  };
+
+  static const _statusLabels = {
+    'available': 'Tersedia',
+    'borrowed': 'Dipinjam',
+    'overdue': 'Terlambat',
+    'reserved': 'Dipesan',
+    'maintenance': 'Perawatan',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final breakdown = controller.bookItemStatusBreakdown;
+    if (breakdown.isEmpty) return const SizedBox.shrink();
+
+    final entries = breakdown.entries.toList();
+    final maxY = entries.map((e) => e.value).fold(0, (a, b) => a > b ? a : b).toDouble();
+
+    final groups = entries.asMap().entries.map((e) {
+      final color = _statusColors[e.value.key] ?? LuminaColors.onSurfaceVariant;
+      return BarChartGroupData(
+        x: e.key,
+        barRods: [
+          BarChartRodData(
+            toY: e.value.value.toDouble(),
+            width: 24,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(6)),
+            color: color,
+          ),
+        ],
+      );
+    }).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(LuminaSpacing.lg),
+      decoration: BoxDecoration(
+        color: LuminaColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+        border: Border.all(color: LuminaColors.outlineVariant),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 18, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Status Buku',
+            style: LuminaTextStyles.titleLg.copyWith(color: LuminaColors.primary, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: LuminaSpacing.md),
+          SizedBox(
+            height: 180,
+            child: BarChart(
+              BarChartData(
+                maxY: maxY == 0 ? 5 : maxY * 1.3,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) =>
+                      FlLine(color: LuminaColors.outlineVariant.withOpacity(0.25), strokeWidth: 1),
+                ),
+                borderData: FlBorderData(show: false),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) => LuminaColors.primary,
+                    tooltipRoundedRadius: 8,
+                    getTooltipItem: (group, _, rod, __) => BarTooltipItem(
+                      '${rod.toY.toInt()}',
+                      const TextStyle(color: LuminaColors.onPrimary, fontWeight: FontWeight.w700, fontSize: 12),
+                    ),
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 32,
+                      getTitlesWidget: (value, _) {
+                        final idx = value.toInt();
+                        if (idx < 0 || idx >= entries.length) return const SizedBox.shrink();
+                        final key = entries[idx].key;
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            _statusLabels[key] ?? key,
+                            style: const TextStyle(
+                              color: LuminaColors.onSurfaceVariant,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                barGroups: groups,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopBooksProgressCard extends StatelessWidget {
+  const _TopBooksProgressCard({required this.controller});
+  final StaffReportController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final books = controller.mostBorrowedBooks.take(5).toList();
+    if (books.isEmpty) return const SizedBox.shrink();
+
+    final maxCount = books.map((b) => b.borrowCount).fold(0, (a, b) => a > b ? a : b);
+
+    return Container(
+      padding: const EdgeInsets.all(LuminaSpacing.lg),
+      decoration: BoxDecoration(
+        color: LuminaColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+        border: Border.all(color: LuminaColors.outlineVariant),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 18, offset: const Offset(0, 8)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Top 5 Buku Terpopuler',
+            style: LuminaTextStyles.titleLg.copyWith(color: LuminaColors.primary, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: LuminaSpacing.md),
+          ...books.asMap().entries.map((e) {
+            final book = e.value;
+            final ratio = maxCount == 0 ? 0.0 : book.borrowCount / maxCount;
+            final isLast = e.key == books.length - 1;
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : LuminaSpacing.sm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          book.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: LuminaTextStyles.bodyMd.copyWith(
+                            color: LuminaColors.onBackground,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: LuminaSpacing.sm),
+                      Text(
+                        '${book.borrowCount}×',
+                        style: LuminaTextStyles.labelMd.copyWith(
+                          color: LuminaColors.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: ratio,
+                      minHeight: 8,
+                      backgroundColor: LuminaColors.surfaceContainer,
+                      valueColor: const AlwaysStoppedAnimation<Color>(LuminaColors.primary),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 }

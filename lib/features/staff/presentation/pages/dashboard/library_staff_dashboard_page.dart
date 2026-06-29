@@ -5,87 +5,170 @@ import 'package:lumina_library/features/staff/presentation/pages/profile/staff_p
 import '../../../../../core/theme/lumina_colors.dart';
 import '../../../../../core/theme/lumina_spacing.dart';
 import '../../controllers/dashboard/library_staff_dashboard_controller.dart';
-import '../../widgets/dashboard/library_staff_dashboard_widgets.dart';
+import '../../widgets/dashboard/staff_chart_card.dart';
+import '../../widgets/dashboard/staff_dashboard_header.dart';
+import '../../widgets/dashboard/staff_popular_book_card.dart';
+import '../../widgets/dashboard/staff_rack_overview_card.dart';
+import '../../widgets/dashboard/staff_recent_activity_card.dart';
+import '../../widgets/dashboard/staff_statistic_card.dart';
 
 class LibraryStaffDashboardPage extends StatelessWidget {
-  const LibraryStaffDashboardPage({
-    super.key,
-  });
+  const LibraryStaffDashboardPage({super.key});
 
   LibraryStaffDashboardController get controller {
     if (Get.isRegistered<LibraryStaffDashboardController>()) {
       return Get.find<LibraryStaffDashboardController>();
     }
-
     return Get.put(LibraryStaffDashboardController());
   }
 
   @override
   Widget build(BuildContext context) {
-    final dashboardController = controller;
+    final c = controller;
 
     return ColoredBox(
       color: LuminaColors.background,
-      child: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: 1280,
-            ),
-            child: RefreshIndicator(
-              onRefresh: dashboardController.refreshDashboard,
-              child: ListView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.only(
-                top: LuminaSpacing.sm,
-                bottom: LuminaSpacing.xl,
-              ),
-              children: [
-                Obx(() {
-                  return LibraryStaffDashboardHeader(
-                    dateText: dashboardController.todayText.value,
-                    staffName: dashboardController.staffName.value,
-                    avatarUrl: LibraryStaffDashboardController.avatarUrl,
-                    hasNotification:
-                        dashboardController.hasNotification.value,
-                    onAvatarTap: () {
-                      Get.to(StaffProfilePage());
-                    },
-                  );
-                }),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1280),
+          child: RefreshIndicator(
+            onRefresh: c.refreshDashboard,
+            child: Obx(() {
+              final isLoading = c.isLoading.value;
+              final charts = c.charts.value;
 
-                const SizedBox(height: LuminaSpacing.md),
-
-                LibraryStaffStatGrid(
-                  items: dashboardController.stats,
+              return CustomScrollView(
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
                 ),
+                slivers: [
+                  // ── Header (consumes safe area internally) ────────────
+                  SliverToBoxAdapter(
+                    child: StaffDashboardHeader(
+                      staffName: c.staffName.value,
+                      branchName: c.branchName.value,
+                      dateText: c.todayText.value,
+                      avatarUrl: c.staffAvatarUrl.value,
+                      hasNotification: c.hasNotification.value,
+                      onAvatarTap: () => Get.to(StaffProfilePage()),
+                      onNotificationTap: c.handleNotificationTap,
+                    ),
+                  ),
 
-                const SizedBox(height: LuminaSpacing.md),
+                  // ── Loading indicator ─────────────────────────────────
+                  if (isLoading)
+                    const SliverToBoxAdapter(
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
 
-                LibraryStaffQuickActionGrid(
-                  items: dashboardController.quickActions,
-                  onItemTap: dashboardController.handleQuickActionTap,
-                ),
+                  const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.md)),
 
-                const SizedBox(height: LuminaSpacing.lg),
+                  // ── Statistics ────────────────────────────────────────
+                  SliverToBoxAdapter(child: _SectionLabel(title: 'Statistik Hari Ini')),
+                  const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.sm)),
+                  SliverToBoxAdapter(
+                    child: StaffStatisticRow(items: c.stats),
+                  ),
 
-                LibraryStaffSectionHeader(
-                  title: 'Recent Activity',
-                  actionLabel: 'Lihat Semua',
-                  onActionTap: dashboardController.handleSeeAllActivityTap,
-                ),
+                  const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.md)),
 
-                const SizedBox(height: LuminaSpacing.md),
+                  // ── Charts ────────────────────────────────────────────
+                  if (charts != null) ...[
+                    SliverToBoxAdapter(child: _SectionLabel(title: 'Analitik')),
+                    const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.sm)),
+                    SliverToBoxAdapter(
+                      child: StaffChartSection(charts: charts),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.md)),
+                  ],
 
-                LibraryStaffRecentActivityCard(
-                  items: dashboardController.recentActivities,
-                ),
-              ],
-              ),
-            ),
+                  // ── Popular Books ─────────────────────────────────────
+                  if (c.popularBooks.isNotEmpty) ...[
+                    SliverToBoxAdapter(child: _SectionLabel(title: 'Buku Populer')),
+                    const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.sm)),
+                    SliverToBoxAdapter(
+                      child: StaffPopularBooksSection(books: c.popularBooks),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.md)),
+                  ],
+
+                  // ── Rack Overview ─────────────────────────────────────
+                  if (c.rackOverview.isNotEmpty) ...[
+                    SliverToBoxAdapter(child: _SectionLabel(title: 'Ikhtisar Rak')),
+                    const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.sm)),
+                    SliverToBoxAdapter(
+                      child: StaffRackOverviewSection(racks: c.rackOverview),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.md)),
+                  ],
+
+                  // ── Recent Activity ───────────────────────────────────
+                  SliverToBoxAdapter(
+                    child: _SectionLabel(
+                      title: 'Aktivitas Terkini',
+                      trailing: TextButton(
+                        onPressed: c.handleSeeAllActivityTap,
+                        style: TextButton.styleFrom(
+                          foregroundColor: LuminaColors.primary,
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: const Text(
+                          'Lihat Semua',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: LuminaColors.primary,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.sm)),
+                  SliverToBoxAdapter(
+                    child: StaffRecentActivitySection(activities: c.richActivities),
+                  ),
+
+                  // ── Bottom padding (nav bar safe area) ────────────────
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: LuminaSpacing.xl + MediaQuery.of(context).padding.bottom,
+                    ),
+                  ),
+                ],
+              );
+            }),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({required this.title, this.trailing});
+  final String title;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: LuminaSpacing.marginMobile),
+      child: Row(
+        children: [
+          Text(
+            title.toUpperCase(),
+            style: const TextStyle(
+              color: LuminaColors.onSurfaceVariant,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+            ),
+          ),
+          if (trailing != null) ...[const Spacer(), trailing!],
+        ],
       ),
     );
   }

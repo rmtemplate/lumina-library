@@ -38,9 +38,11 @@ class RackListPage extends StatelessWidget {
 
             return RackTopAppBar(
               title: 'Rak Buku',
-              subtitle: rackController.isSearching
-                  ? '$filteredRack hasil ditemukan'
-                  : '$totalRack rak tersedia • Kelola lokasi koleksi',
+              subtitle: rackController.isLoading.value
+                  ? 'Memuat data rak...'
+                  : rackController.isSearching
+                      ? '$filteredRack hasil ditemukan'
+                      : '$totalRack rak tersedia • Kelola lokasi koleksi',
               showSearch: true,
               searchController: rackController.searchController,
               searchHintText: 'Cari rak, kode rak, lantai, area...',
@@ -54,8 +56,13 @@ class RackListPage extends StatelessWidget {
             );
           }),
           Expanded(
-            child: Obx(() {
+            child: RefreshIndicator(
+              onRefresh: rackController.refreshRacks,
+              child: Obx(() {
               final racks = rackController.filteredRacks;
+              if (rackController.isLoading.value && racks.isEmpty) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
               if (racks.isEmpty && rackController.isSearching) {
                 return EmptyStateWidget(
@@ -110,6 +117,7 @@ class RackListPage extends StatelessWidget {
                 ),
               );
             }),
+            ),
           ),
         ],
       ),

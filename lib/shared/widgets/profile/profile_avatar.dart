@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import 'package:lumina_library/core/theme/lumina_colors.dart';
@@ -6,24 +8,33 @@ import 'package:lumina_library/core/theme/lumina_colors.dart';
 /// loading overlay — used by the profile header and the Edit Profile page.
 /// Pure presentation: picking/cropping/uploading logic lives in
 /// [LuminaProfileController], not here.
+///
+/// Display priority: [localFile] → [avatarUrl] network image → person icon.
+/// [localFile] is set optimistically after a successful crop/upload so the
+/// new photo appears immediately without waiting for the network URL to load
+/// (which depends on the storage symlink being created on the backend).
 class ProfileAvatar extends StatelessWidget {
   const ProfileAvatar({
     super.key,
     required this.avatarUrl,
+    this.localFile,
     this.size = 104,
     this.isUploading = false,
     this.onEditTap,
   });
 
   final String? avatarUrl;
+
+  /// Local file from the image cropper — shown instead of the network URL
+  /// immediately after upload so the user sees their new photo right away.
+  final File? localFile;
+
   final double size;
   final bool isUploading;
   final VoidCallback? onEditTap;
 
   @override
   Widget build(BuildContext context) {
-    final hasUrl = avatarUrl != null && avatarUrl!.trim().isNotEmpty;
-
     return SizedBox(
       width: size,
       height: size,
@@ -46,21 +57,7 @@ class ProfileAvatar extends StatelessWidget {
               ],
             ),
             clipBehavior: Clip.antiAlias,
-            child: hasUrl
-                ? Image.network(
-                    avatarUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Icon(
-                      Icons.person_rounded,
-                      color: LuminaColors.primary,
-                      size: size * 0.44,
-                    ),
-                  )
-                : Icon(
-                    Icons.person_rounded,
-                    color: LuminaColors.primary,
-                    size: size * 0.44,
-                  ),
+            child: _buildImage(),
           ),
           if (isUploading)
             Container(
@@ -107,5 +104,30 @@ class ProfileAvatar extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildImage() {
+    final fallbackIcon = Icon(Icons.person_rounded, color: LuminaColors.primary, size: size * 0.44);
+    final hasUrl = avatarUrl?.trim().isNotEmpty == true;
+
+    if (localFile != null) {
+      return Image.file(
+        localFile!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => hasUrl
+            ? Image.network(avatarUrl!, fit: BoxFit.cover, errorBuilder: (_, _, _) => fallbackIcon)
+            : fallbackIcon,
+      );
+    }
+
+    if (hasUrl) {
+      return Image.network(
+        avatarUrl!,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => fallbackIcon,
+      );
+    }
+
+    return fallbackIcon;
   }
 }

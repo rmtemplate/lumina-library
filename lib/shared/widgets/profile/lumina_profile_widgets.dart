@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/lumina_colors.dart';
@@ -115,12 +117,16 @@ class LuminaProfileHeaderCard extends StatelessWidget {
     super.key,
     required this.profile,
     required this.subtitle,
+    this.localAvatarFile,
     this.onEditPhotoTap,
     this.isUploadingPhoto = false,
   });
 
   final LuminaProfileDataModel profile;
   final String subtitle;
+
+  /// Optimistic local file from [LuminaProfileController.pendingAvatarFile].
+  final File? localAvatarFile;
   final VoidCallback? onEditPhotoTap;
   final bool isUploadingPhoto;
 
@@ -133,6 +139,7 @@ class LuminaProfileHeaderCard extends StatelessWidget {
       children: [
         ProfileAvatar(
           avatarUrl: profile.avatarUrl,
+          localFile: localAvatarFile,
           isUploading: isUploadingPhoto,
           onEditTap: onEditPhotoTap,
         ),
@@ -315,6 +322,8 @@ class LuminaStaffLibraryLocationCard extends StatelessWidget {
   }
 }
 
+/// Read-only display card for profile info rows — no InkWell, no chevron.
+/// Editing happens on EditProfilePage, not here.
 class LuminaProfileInfoCard extends StatelessWidget {
   const LuminaProfileInfoCard({
     super.key,
@@ -327,16 +336,106 @@ class LuminaProfileInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox.shrink();
 
-    return LuminaProfileMenuCard(
-      sectionTitle: 'Personal Information',
-      items: items.map((item) {
-        return LuminaProfileMenuItemModel(
-          id: item.label,
-          icon: item.icon,
-          label: item.label,
-          trailingText: item.value,
-        );
-      }).toList(growable: false),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: LuminaSpacing.sm,
+            vertical: LuminaSpacing.xs,
+          ),
+          child: Text(
+            'PERSONAL INFORMATION',
+            style: LuminaTextStyles.labelMd.copyWith(
+              color: LuminaColors.primary,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1,
+              decoration: TextDecoration.none,
+              decorationColor: Colors.transparent,
+            ),
+          ),
+        ),
+        const SizedBox(height: LuminaSpacing.xs),
+        Container(
+          decoration: BoxDecoration(
+            color: LuminaColors.surfaceContainerLowest,
+            borderRadius: BorderRadius.circular(LuminaRadius.xl),
+            border: Border.all(color: LuminaColors.surfaceVariant, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: List.generate(items.length, (index) {
+              return _InfoRow(
+                item: items[index],
+                showDivider: index != items.length - 1,
+              );
+            }),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.item, required this.showDivider});
+
+  final LuminaProfileInfoRowModel item;
+  final bool showDivider;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: showDivider
+          ? const BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: LuminaColors.surfaceVariant, width: 1),
+              ),
+            )
+          : null,
+      padding: const EdgeInsets.all(LuminaSpacing.md),
+      child: Row(
+        children: [
+          Icon(item.icon, color: LuminaColors.outline, size: 23),
+          const SizedBox(width: LuminaSpacing.sm),
+          Expanded(
+            child: Text(
+              item.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: LuminaTextStyles.bodyMd.copyWith(
+                color: LuminaColors.onSurface,
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.none,
+                decorationColor: Colors.transparent,
+              ),
+            ),
+          ),
+          const SizedBox(width: LuminaSpacing.sm),
+          Flexible(
+            child: Text(
+              item.value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: LuminaTextStyles.labelMd.copyWith(
+                color: LuminaColors.outline,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+                decoration: TextDecoration.none,
+                decorationColor: Colors.transparent,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

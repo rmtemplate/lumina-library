@@ -130,6 +130,7 @@ class LuminaProfilePage extends StatelessWidget {
                           profile: profile,
                           subtitle: profileController.profileSubtitle,
                           isUploadingPhoto: profileController.isUploadingPhoto.value,
+                          localAvatarFile: profileController.pendingAvatarFile.value,
                           onEditPhotoTap: profileController.editProfilePhoto,
                         ),
                         if (profile.hasStaffLibrary) ...[

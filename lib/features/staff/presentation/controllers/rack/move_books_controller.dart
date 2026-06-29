@@ -8,11 +8,13 @@ class MoveBooksController extends GetxController {
     required this.sourceRackId,
     required this.bookIds,
     required this.rackController,
+    required this.selectedBooks,
   });
 
   final String sourceRackId;
   final List<String> bookIds;
   final RackController rackController;
+  final List<BookModel> selectedBooks;
 
   final TextEditingController searchController = TextEditingController();
   final TextEditingController notesController = TextEditingController();
@@ -22,10 +24,6 @@ class MoveBooksController extends GetxController {
   final RxString selectedReason = 'reorganization'.obs;
 
   RackModel? get sourceRack => rackController.findRackById(sourceRackId);
-
-  List<BookModel> get selectedBooks {
-    return rackController.findBooksByIds(bookIds);
-  }
 
   List<RackModel> get destinationRacks {
     final keyword = searchKeyword.value.trim().toLowerCase();

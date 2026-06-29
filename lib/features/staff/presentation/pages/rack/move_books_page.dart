@@ -8,6 +8,7 @@ import '../../../../../core/theme/lumina_text_styles.dart';
 import '../../../../../shared/widgets/feedback/lumina_toast.dart';
 import '../../controllers/rack/move_books_controller.dart';
 import '../../controllers/rack/rack_controller.dart';
+import '../../models/rack_management_models.dart';
 import '../../widgets/rack/rack_management_widgets.dart';
 
 class MoveBooksPage extends StatelessWidget {
@@ -15,10 +16,12 @@ class MoveBooksPage extends StatelessWidget {
     super.key,
     required this.sourceRackId,
     required this.selectedBookIds,
+    required this.selectedBooks,
   });
 
   final String sourceRackId;
   final List<String> selectedBookIds;
+  final List<BookModel> selectedBooks;
 
   String get _controllerTag {
     return 'move-books-$sourceRackId-${selectedBookIds.join('-')}';
@@ -45,6 +48,7 @@ class MoveBooksPage extends StatelessWidget {
         sourceRackId: sourceRackId,
         bookIds: selectedBookIds,
         rackController: rackController,
+        selectedBooks: selectedBooks,
       ),
       tag: _controllerTag,
     );

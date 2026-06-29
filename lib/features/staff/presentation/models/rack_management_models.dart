@@ -6,6 +6,9 @@ class BookModel {
     required this.cover,
     required this.rackId,
     this.catalogCode,
+    this.status,
+    this.itemCode,
+    this.barcode,
   });
 
   final String id;
@@ -14,6 +17,24 @@ class BookModel {
   final String cover;
   final String rackId;
   final String? catalogCode;
+  final String? status;
+  final String? itemCode;
+  final String? barcode;
+
+  factory BookModel.fromJson(Map<String, dynamic> json, {String rackId = ''}) {
+    final book = json['book'] as Map<String, dynamic>? ?? {};
+    return BookModel(
+      id: json['id']?.toString() ?? '',
+      title: book['title']?.toString() ?? json['title']?.toString() ?? '-',
+      author: book['author']?.toString() ?? json['author']?.toString() ?? '-',
+      cover: book['cover_url']?.toString() ?? json['cover_url']?.toString() ?? '',
+      rackId: rackId,
+      catalogCode: book['book_code']?.toString() ?? json['book_code']?.toString(),
+      status: json['status']?.toString(),
+      itemCode: json['item_code']?.toString(),
+      barcode: json['barcode']?.toString(),
+    );
+  }
 
   BookModel copyWith({
     String? id,
@@ -22,6 +43,9 @@ class BookModel {
     String? cover,
     String? rackId,
     String? catalogCode,
+    String? status,
+    String? itemCode,
+    String? barcode,
   }) {
     return BookModel(
       id: id ?? this.id,
@@ -30,6 +54,9 @@ class BookModel {
       cover: cover ?? this.cover,
       rackId: rackId ?? this.rackId,
       catalogCode: catalogCode ?? this.catalogCode,
+      status: status ?? this.status,
+      itemCode: itemCode ?? this.itemCode,
+      barcode: barcode ?? this.barcode,
     );
   }
 }
@@ -43,39 +70,53 @@ class RackModel {
     required this.floorLabel,
     required this.areaLabel,
     required this.aisleCode,
-    required this.books,
+    this.books = const [],
     this.capacity = 100,
     this.isBasement = false,
     this.notes,
+    this.apiTotalBooks,
   });
 
   final String id;
-
-  /// Contoh:
-  /// 1RN002, B1-TEC-004, 2HIS011
   final String rackCode;
-
   final String name;
   final String sectionName;
-
-  /// Contoh:
-  /// Lantai 1, Lantai 2, Basement B1
   final String floorLabel;
-
-  /// Contoh:
-  /// Area Novel, Academic Wing, Technology Zone
   final String areaLabel;
-
-  /// Contoh:
-  /// Lorong N-02, Aisle T-04
   final String aisleCode;
-
   final List<BookModel> books;
   final int capacity;
   final bool isBasement;
   final String? notes;
+  // Populated from list API; overrides books.length when books aren't loaded.
+  final int? apiTotalBooks;
 
-  int get bookCount => books.length;
+  factory RackModel.fromJson(Map<String, dynamic> json) {
+    return RackModel(
+      id: json['id']?.toString() ?? '',
+      rackCode: json['rack_code']?.toString() ?? '',
+      name: json['name']?.toString() ?? '-',
+      sectionName: json['section_name']?.toString() ?? '',
+      floorLabel: json['floor_label']?.toString() ?? '',
+      areaLabel: json['area_label']?.toString() ?? '',
+      aisleCode: json['aisle_code']?.toString() ?? '',
+      capacity: (json['capacity'] as num?)?.toInt() ?? 100,
+      isBasement: json['is_basement'] == true || json['is_basement'] == 1,
+      notes: json['notes']?.toString(),
+      apiTotalBooks: (json['total_books_count'] as num?)?.toInt(),
+    );
+  }
+
+  static RackModel fromDetailJson(Map<String, dynamic> rack, List<dynamic> rawBooks) {
+    final model = RackModel.fromJson(rack);
+    final books = rawBooks
+        .whereType<Map<String, dynamic>>()
+        .map((b) => BookModel.fromJson(b, rackId: model.id))
+        .toList();
+    return model.copyWith(books: books, apiTotalBooks: books.length);
+  }
+
+  int get bookCount => apiTotalBooks ?? books.length;
 
   bool get isFull => capacity > 0 && bookCount >= capacity;
 
@@ -136,6 +177,7 @@ class RackModel {
     int? capacity,
     bool? isBasement,
     String? notes,
+    int? apiTotalBooks,
   }) {
     return RackModel(
       id: id ?? this.id,
@@ -149,6 +191,7 @@ class RackModel {
       capacity: capacity ?? this.capacity,
       isBasement: isBasement ?? this.isBasement,
       notes: notes ?? this.notes,
+      apiTotalBooks: apiTotalBooks ?? this.apiTotalBooks,
     );
   }
 }

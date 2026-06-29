@@ -214,12 +214,49 @@ class StaffApiService {
     return response.data ?? {};
   }
 
-  /// GET /api/v1/staff/racks — Shelf/Location picker for Book Registration.
+  /// GET /api/v1/staff/racks — list racks with book counts.
   Future<List<Map<String, dynamic>>> getRacks() async {
     final response = await _client.get<List<dynamic>>(
       '/staff/racks',
       fromData: (data) => data as List<dynamic>,
     );
     return (response.data ?? []).whereType<Map<String, dynamic>>().toList();
+  }
+
+  /// GET /api/v1/staff/racks/{id} — rack detail with books.
+  Future<Map<String, dynamic>> getRackDetail(String rackId) async {
+    final response = await _client.get<Map<String, dynamic>>(
+      '/staff/racks/$rackId',
+      fromData: (data) => data as Map<String, dynamic>,
+    );
+    return response.data ?? {};
+  }
+
+  /// POST /api/v1/staff/racks — create rack.
+  Future<Map<String, dynamic>> createRack(Map<String, dynamic> fields) async {
+    final response = await _client.post<Map<String, dynamic>>(
+      '/staff/racks',
+      body: fields,
+      fromData: (data) => data as Map<String, dynamic>,
+    );
+    return response.data ?? {};
+  }
+
+  /// PUT /api/v1/staff/racks/{id} — update rack.
+  Future<Map<String, dynamic>> updateRack(String rackId, Map<String, dynamic> fields) async {
+    final response = await _client.put<Map<String, dynamic>>(
+      '/staff/racks/$rackId',
+      body: fields,
+      fromData: (data) => data as Map<String, dynamic>,
+    );
+    return response.data ?? {};
+  }
+
+  /// DELETE /api/v1/staff/racks/{id} — deactivate rack.
+  Future<void> deleteRack(String rackId) async {
+    await _client.delete<void>(
+      '/staff/racks/$rackId',
+      fromData: (_) {},
+    );
   }
 }

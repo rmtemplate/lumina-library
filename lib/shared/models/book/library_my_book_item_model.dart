@@ -98,14 +98,15 @@ class LibraryMyBookItemModel {
 
   bool get hasFine => fineAmount > 0;
 
-  /// True once the backend has auto-flagged this borrowing as needing
-  /// payment (status -> waiting_payment — see BorrowingOverdueService on
-  /// the backend, which now flips this automatically the instant a
-  /// borrowing becomes overdue, not only when staff later processes a
-  /// return). Also true for the "still active but overdue" display state,
-  /// before the backstop has had a chance to flip it, so the pay-fine
-  /// button still surfaces eagerly client-side.
-  bool get mustPayFine => isWaitingPayment || (isOverdue && hasFine);
+  /// True when the backend has confirmed payment is required (status ==
+  /// waiting_payment). The backend runtime backstop (BorrowingOverdueService
+  /// flagOne/flagDueOverdueBorrowings) always runs on every detail fetch, so
+  /// by the time this field is read, an overdue borrowing will already be in
+  /// waiting_payment if payment is needed. After payment succeeds, the borrowing
+  /// returns to active/overdue with total_fine > 0 — we must NOT re-trigger the
+  /// payment flow in that case, so the old `|| (isOverdue && hasFine)` arm is
+  /// intentionally removed.
+  bool get mustPayFine => isWaitingPayment;
 
   String get effectiveReturnLocationName {
     final value = returnLocationName;
@@ -259,7 +260,10 @@ class LibraryMyBookItemModel {
       status: status,
       remainingDays: (json['days_remaining'] as num?)?.toInt() ?? 0,
       overdueDays: (json['overdue_days'] as num?)?.toInt() ?? 0,
-      fineAmount: ((json['estimated_fine'] as num?)?.toDouble() ?? 0).toInt(),
+      // Backend is the single source of truth for this number — see
+      // FineCalculator::overdueFineAmount() — Flutter never derives it
+      // from overdueDays/finePerDay itself.
+      fineAmount: ((json['total_fine'] as num?)?.toDouble() ?? 0).toInt(),
       finePerDay: ((json['fine_per_day'] as num?)?.toDouble() ?? 0).toInt(),
       destinationLatitude: 0.0,
       destinationLongitude: 0.0,

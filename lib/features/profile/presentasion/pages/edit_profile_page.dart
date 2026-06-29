@@ -127,11 +127,13 @@ class _EditProfilePageState extends State<EditProfilePage> {
             ),
             children: [
               Center(
-                child: ProfileAvatar(
+                child: Obx(() => ProfileAvatar(
                   avatarUrl: profile.avatarUrl,
+                  localFile: widget.controller.pendingAvatarFile.value,
                   size: 88,
+                  isUploading: widget.controller.isUploadingPhoto.value,
                   onEditTap: widget.controller.editProfilePhoto,
-                ),
+                )),
               ),
               const SizedBox(height: LuminaSpacing.lg),
               _ReadOnlyField(label: 'Student ID / NIM', value: profile.memberCode ?? '-'),

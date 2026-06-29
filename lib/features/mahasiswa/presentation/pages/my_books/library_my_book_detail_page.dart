@@ -13,7 +13,9 @@ import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
 import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
+import 'package:lumina_library/features/mahasiswa/data/services/payment_api_service.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/library_location/library_route_map_page.dart';
+import 'package:lumina_library/shared/models/payment/borrowing_payment_model.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/payment/library_payment_page.dart';
 import 'package:lumina_library/shared/models/book/library_my_book_item_model.dart';
 import 'package:lumina_library/shared/models/borrowing/checkout_result_model.dart';
@@ -37,6 +39,7 @@ class _LibraryMyBookDetailPageState extends State<LibraryMyBookDetailPage> {
   bool _isRefreshing = true;
   String? _loadError;
   StreamSubscription<WebSocketEvent>? _wsSubscription;
+  BorrowingPaymentModel? _existingPayment;
 
   @override
   void initState() {
@@ -71,6 +74,13 @@ class _LibraryMyBookDetailPageState extends State<LibraryMyBookDetailPage> {
         _isRefreshing = false;
         _loadError = null;
       });
+      // When waiting_payment, surface the existing pending payment so the
+      // button says "Continue Payment" and we can skip the method sheet.
+      if (fresh.isWaitingPayment) {
+        unawaited(_fetchExistingPayment());
+      } else if (_existingPayment != null) {
+        setState(() => _existingPayment = null);
+      }
     } on LuminaApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -85,6 +95,16 @@ class _LibraryMyBookDetailPageState extends State<LibraryMyBookDetailPage> {
       setState(() => _isRefreshing = false);
       debugPrint('[MYBOOK_DETAIL] Refetch failed: $e');
     }
+  }
+
+  Future<void> _fetchExistingPayment() async {
+    try {
+      final p = await Get.find<PaymentApiService>().byBorrowing(_book.loanId);
+      if (!mounted) return;
+      setState(() {
+        _existingPayment = (p != null && p.isPending && !p.isExpired) ? p : null;
+      });
+    } catch (_) {}
   }
 
   /// Live updates while this page is open — a payment completed (possibly
@@ -151,13 +171,26 @@ class _LibraryMyBookDetailPageState extends State<LibraryMyBookDetailPage> {
     ).then((_) => _refetchBook());
   }
 
-  /// "Proceed to Payment" — opens the payment-method BottomSheet first
-  /// (outstanding fine, payment status, method list, Continue). Only once
-  /// a method is confirmed there does the dedicated Payment Detail page
-  /// open for that specific transaction. Refetches on return regardless of
-  /// outcome, so the fine section / action button reflect the latest state
-  /// immediately without the member needing to do anything.
+  /// "Proceed to Payment" / "Continue Payment" — if a pending, non-expired
+  /// payment already exists for this borrowing (detected during the last
+  /// refetch), skip the method-selection bottom sheet and open the payment
+  /// page directly. Otherwise, show the method sheet first so the member
+  /// can choose how to pay. Refetches on return either way.
   Future<void> _handleProceedToPayment() async {
+    final existing = _existingPayment;
+    if (existing != null) {
+      await Get.to(
+        () => LibraryPaymentPage(
+          borrowingId: _book.loanId,
+          borrowingCode: _book.bookCode,
+          payment: existing,
+        ),
+        transition: Transition.cupertino,
+      );
+      unawaited(_refetchBook());
+      return;
+    }
+
     final payment = await PaymentMethodBottomSheet.show(
       context,
       borrowingId: _book.loanId,
@@ -209,6 +242,7 @@ class _LibraryMyBookDetailPageState extends State<LibraryMyBookDetailPage> {
       bottomNavigationBar: (showQrButton || mustPayFine)
           ? _LoanBottomActionBar(
               mustPayFine: mustPayFine,
+              hasPendingPayment: _existingPayment != null,
               showPickupQr: showPickupQr,
               showReturnQr: showReturnQr,
               onShowQrTap: showPickupQr ? _showPickupQrBottomSheet : _showReturnQrBottomSheet,
@@ -869,6 +903,10 @@ class _ReturnLocationCard extends StatelessWidget {
   }
 }
 
+/// Displays the fine breakdown exactly as returned by the backend
+/// (overdue_days / fine_per_day / total_fine — see FineCalculator on the
+/// backend) — no value here is computed in Flutter, every number is a
+/// direct passthrough of [book]'s fields.
 class _FineSummaryCard extends StatelessWidget {
   const _FineSummaryCard({
     required this.book,
@@ -888,57 +926,110 @@ class _FineSummaryCard extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: LuminaColors.error.withOpacity(0.10),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.payments_rounded,
-              color: LuminaColors.error,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: LuminaSpacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  book.mustPayFine ? 'Payment Required' : 'Outstanding Fine',
-                  style: LuminaTextStyles.bodyMd.copyWith(
-                    color: LuminaColors.onErrorContainer,
-                    fontWeight: FontWeight.w900,
-                  ),
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: LuminaColors.error.withOpacity(0.10),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  '${book.overdueDays} days x ${book.finePerDayText} = ${book.fineAmountText}',
-                  style: LuminaTextStyles.bodyMd.copyWith(
-                    color: LuminaColors.onErrorContainer,
-                    fontWeight: FontWeight.w700,
-                  ),
+                child: const Icon(
+                  Icons.payments_rounded,
+                  color: LuminaColors.error,
+                  size: 20,
                 ),
-                if (book.mustPayFine) ...[
-                  const SizedBox(height: 3),
-                  Text(
-                    'Complete the payment below to continue.',
-                    style: LuminaTextStyles.labelMd.copyWith(
-                      color: LuminaColors.onErrorContainer.withOpacity(0.78),
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+              ),
+              const SizedBox(width: LuminaSpacing.sm),
+              Text(
+                book.mustPayFine ? 'Payment Required' : 'Outstanding Fine',
+                style: LuminaTextStyles.bodyMd.copyWith(
+                  color: LuminaColors.onErrorContainer,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: LuminaSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: _FineBreakdownItem(
+                  label: 'Overdue Days',
+                  value: '${book.overdueDays} Days',
+                ),
+              ),
+              Expanded(
+                child: _FineBreakdownItem(
+                  label: 'Fine Per Day',
+                  value: book.finePerDayText,
+                ),
+              ),
+              Expanded(
+                child: _FineBreakdownItem(
+                  label: 'Total Fine',
+                  value: book.fineAmountText,
+                  emphasize: true,
+                ),
+              ),
+            ],
+          ),
+          if (book.mustPayFine) ...[
+            const SizedBox(height: LuminaSpacing.sm),
+            Text(
+              'Complete the payment below to continue.',
+              style: LuminaTextStyles.labelMd.copyWith(
+                color: LuminaColors.onErrorContainer.withOpacity(0.78),
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _FineBreakdownItem extends StatelessWidget {
+  const _FineBreakdownItem({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: LuminaTextStyles.labelMd.copyWith(
+            color: LuminaColors.onErrorContainer.withOpacity(0.75),
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: LuminaTextStyles.bodyMd.copyWith(
+            color: LuminaColors.onErrorContainer,
+            fontWeight: emphasize ? FontWeight.w900 : FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -946,6 +1037,7 @@ class _FineSummaryCard extends StatelessWidget {
 class _LoanBottomActionBar extends StatelessWidget {
   const _LoanBottomActionBar({
     required this.mustPayFine,
+    required this.hasPendingPayment,
     required this.showPickupQr,
     required this.showReturnQr,
     required this.onShowQrTap,
@@ -953,6 +1045,7 @@ class _LoanBottomActionBar extends StatelessWidget {
   });
 
   final bool mustPayFine;
+  final bool hasPendingPayment;
   final bool showPickupQr;
   final bool showReturnQr;
   final VoidCallback onShowQrTap;
@@ -973,7 +1066,7 @@ class _LoanBottomActionBar extends StatelessWidget {
             onPressed: onPayFineTap,
             icon: const Icon(Icons.payment_rounded, size: 20),
             label: Text(
-              'Proceed to Payment',
+              hasPendingPayment ? 'Continue Payment' : 'Proceed to Payment',
               style: LuminaTextStyles.titleSm.copyWith(color: Colors.white, fontWeight: FontWeight.w900),
             ),
             style: ElevatedButton.styleFrom(

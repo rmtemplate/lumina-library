@@ -56,6 +56,7 @@ class ManageRackPage extends StatelessWidget {
       () => MoveBooksPage(
         sourceRackId: rackId,
         selectedBookIds: selectedBookIds,
+        selectedBooks: manageController.selectedBooks,
       ),
       transition: Transition.cupertino,
     );
@@ -103,12 +104,20 @@ class ManageRackPage extends StatelessWidget {
               trailingIcon: Icons.more_vert_rounded,
             );
           }),
+          Obx(() => manageController.isDetailLoading.value && manageController.books.isEmpty
+              ? const LinearProgressIndicator(minHeight: 2)
+              : const SizedBox.shrink()),
           Expanded(
-            child: Obx(() {
+            child: RefreshIndicator(
+              onRefresh: manageController.refreshDetail,
+              child: Obx(() {
               final rack = manageController.rack;
               final books = manageController.books;
 
               if (rack == null) {
+                if (manageController.isDetailLoading.value) {
+                  return const Center(child: CircularProgressIndicator());
+                }
                 return const EmptyStateWidget(
                   icon: Icons.error_outline_rounded,
                   title: 'Rak Tidak Ditemukan',
@@ -177,6 +186,7 @@ class ManageRackPage extends StatelessWidget {
                 ),
               );
             }),
+            ),
           ),
         ],
       ),
