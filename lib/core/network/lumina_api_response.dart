@@ -8,6 +8,7 @@ class LuminaApiResponse<T> {
     required this.code,
     required this.message,
     this.data,
+    this.meta,
     this.errors,
   });
 
@@ -15,7 +16,16 @@ class LuminaApiResponse<T> {
   final String code;
   final String message;
   final T? data;
+
+  /// Sibling of `data` in the backend envelope. Holds `pagination`
+  /// ({ current_page, last_page, total, has_more_pages, per_page }) and
+  /// other contextual metadata. Previously discarded — needed for infinite
+  /// scroll to read `meta.pagination.has_more_pages`.
+  final Map<String, dynamic>? meta;
   final dynamic errors;
+
+  Map<String, dynamic>? get pagination =>
+      meta?['pagination'] as Map<String, dynamic>?;
 
   factory LuminaApiResponse.fromJson(
     Map<String, dynamic> json, {
@@ -28,6 +38,7 @@ class LuminaApiResponse<T> {
       data: (fromData != null && json['data'] != null)
           ? fromData(json['data'])
           : json['data'] as T?,
+      meta: json['meta'] as Map<String, dynamic>?,
       errors: json['errors'],
     );
   }

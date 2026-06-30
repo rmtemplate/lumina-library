@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:lumina_library/core/network/lumina_api_client.dart';
+import 'package:lumina_library/core/network/lumina_api_response.dart';
 import 'package:lumina_library/shared/models/banner/banner_model.dart';
 import 'package:lumina_library/shared/models/book/book_model.dart';
 import 'package:lumina_library/shared/models/book/library_my_book_item_model.dart';
@@ -165,6 +166,94 @@ class HomeApiService {
       },
     );
     return BookModel.listFromJson(response.data ?? []);
+  }
+
+  /// GET /api/v1/books — paginated version.
+  ///
+  /// Backend envelope: `data` is the book array; pagination metadata lives in
+  /// `meta.pagination` (current_page, last_page, total, has_more_pages).
+  /// The backend page size is driven by the `limit` query param (max 50);
+  /// `page` is read automatically by Laravel's paginator.
+  Future<({List<BookModel> items, bool hasMorePages})> getCatalogBooksPage({
+    int page = 1,
+    int perPage = 15,
+    String? categorySlug,
+    String? status,
+    int? year,
+    String sort = 'trending',
+  }) async {
+    final query = <String, String>{
+      'sort': sort,
+      'limit': perPage.toString(),
+      'page': page.toString(),
+    };
+    if (categorySlug != null && categorySlug.isNotEmpty) {
+      query['category_slug'] = categorySlug;
+    }
+    if (status != null) query['status'] = status;
+    if (year != null) query['year'] = year.toString();
+
+    final response = await _client.get<List<dynamic>>(
+      '/books',
+      query: query,
+      fromData: (data) => data is List ? data : <dynamic>[],
+    );
+
+    return _resolveBookPage('CATALOG', page, response);
+  }
+
+  /// GET /api/v1/public/branches/{branchId}/books — paginated version.
+  /// Same envelope/pagination contract as [getCatalogBooksPage].
+  Future<({List<BookModel> items, bool hasMorePages})> getBranchBooksPage(
+    String branchId, {
+    int page = 1,
+    int perPage = 15,
+    String sort = 'trending',
+    String? status,
+    String? search,
+    String? categoryId,
+  }) async {
+    final query = <String, String>{
+      'sort': sort,
+      'limit': perPage.toString(),
+      'page': page.toString(),
+    };
+    if (status != null) query['status'] = status;
+    if (search != null && search.isNotEmpty) query['search'] = search;
+    if (categoryId != null) query['category_id'] = categoryId;
+
+    final response = await _client.get<List<dynamic>>(
+      '/public/branches/$branchId/books',
+      query: query,
+      fromData: (data) => data is List ? data : <dynamic>[],
+    );
+
+    return _resolveBookPage('BRANCH', page, response);
+  }
+
+  /// Shared parser for both paginated book endpoints — reads the item list
+  /// from `data` and `has_more_pages` from `meta.pagination`.
+  ({List<BookModel> items, bool hasMorePages}) _resolveBookPage(
+    String tag,
+    int requestedPage,
+    LuminaApiResponse<List<dynamic>> response,
+  ) {
+    final rawList = response.data ?? <dynamic>[];
+    final pagination = response.pagination;
+    final hasMorePages = pagination?['has_more_pages'] as bool? ?? false;
+
+    // ponytail: temporary debug logging for infinite-scroll verification.
+    debugPrint(
+      '[PAGINATION][$tag] requestedPage=$requestedPage '
+      'current_page=${pagination?['current_page']} '
+      'last_page=${pagination?['last_page']} '
+      'total=${pagination?['total']} '
+      'per_page=${pagination?['per_page']} '
+      'apiResponseCount=${rawList.length} '
+      'has_more_pages=$hasMorePages',
+    );
+
+    return (items: BookModel.listFromJson(rawList), hasMorePages: hasMorePages);
   }
 
   /// GET /api/v1/books/{bookId}/branches/{branchId} — butuh auth.

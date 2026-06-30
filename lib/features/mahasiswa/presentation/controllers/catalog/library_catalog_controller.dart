@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 
 import 'package:lumina_library/core/network/lumina_api_exception.dart';
@@ -20,7 +21,8 @@ class LibraryCatalogController extends GetxController {
   static const String defaultDistanceKey = 'all';
   static const String defaultCategoryKey = 'all';
   static const String defaultAvailabilityKey = 'all';
-  static const String defaultSortKey = 'popular';
+  static const String defaultSortKey = 'trending';
+  static const int _perPage = 15;
 
   final RxString selectedDistanceKey = defaultDistanceKey.obs;
   final RxString selectedCategoryKey = defaultCategoryKey.obs;
@@ -28,9 +30,16 @@ class LibraryCatalogController extends GetxController {
   final RxString selectedSortKey = defaultSortKey.obs;
   final RxnInt selectedPublishedYear = RxnInt();
 
+  // Loading states
   final RxBool isLoading = false.obs;
+  final RxBool isLoadingMore = false.obs;
   final RxBool isCategoriesLoading = false.obs;
   final RxString errorMessage = ''.obs;
+  final RxString loadMoreError = ''.obs;
+
+  // Pagination
+  final RxBool hasMorePages = true.obs;
+  int _currentPage = 1;
 
   final RxList<BookModel> books = <BookModel>[].obs;
   final RxList<CategoryModel> apiCategories = <CategoryModel>[].obs;
@@ -61,7 +70,7 @@ class LibraryCatalogController extends GetxController {
   ];
 
   final List<CatalogFilterOption<String>> sortOptions = const [
-    CatalogFilterOption(label: 'Terpopuler', value: 'popular'),
+    CatalogFilterOption(label: 'Terpopuler', value: 'trending'),
     CatalogFilterOption(label: 'Jarak terdekat', value: 'nearby'),
     CatalogFilterOption(label: 'Rating tertinggi', value: 'rating'),
     CatalogFilterOption(label: 'Terbaru', value: 'newest'),
@@ -69,7 +78,6 @@ class LibraryCatalogController extends GetxController {
 
   // ── Dynamic category options (dari API) ───────────────────────────────────
 
-  /// Daftar opsi kategori yang selalu sinkron dengan data API.
   List<CatalogFilterOption<String>> get categoryOptions {
     final allOption = const CatalogFilterOption<String>(
       label: 'Semua kategori',
@@ -99,43 +107,99 @@ class LibraryCatalogController extends GetxController {
 
   // ── Public methods ─────────────────────────────────────────────────────────
 
-  /// Dipanggil setiap kali user kembali ke tab Catalog.
-  /// Me-refresh categories + books dan mereset filter ke default.
   @override
   Future<void> refresh() async {
-    resetFilters();
+    selectedDistanceKey.value = defaultDistanceKey;
+    selectedCategoryKey.value = defaultCategoryKey;
+    selectedAvailabilityKey.value = defaultAvailabilityKey;
+    selectedPublishedYear.value = null;
+    selectedSortKey.value = defaultSortKey;
     await _loadAll();
   }
 
-  /// Dipanggil dari home page saat navigasi ke Catalog dengan category tertentu
-  /// (misalnya dari icon kategori di dashboard).
   void applyInitialCategory(String? slug) {
     if (slug == null || slug.trim().isEmpty) return;
-    selectedCategoryKey.value = slug.trim();
+    final newSlug = slug.trim();
+    if (selectedCategoryKey.value == newSlug) return;
+    selectedCategoryKey.value = newSlug;
+    loadBooks();
   }
 
+  /// Called when user taps "Terapkan Filter" in the filter sheet.
+  void applyFilters() => loadBooks();
+
   Future<void> loadBooks() async {
+    _currentPage = 1;
+    hasMorePages.value = true;
+    loadMoreError.value = '';
     isLoading.value = true;
     errorMessage.value = '';
+    books.clear();
 
     try {
-      final service = Get.find<HomeApiService>();
-      final result = await service.getCatalogBooks(sort: 'trending', limit: 30);
-      books.assignAll(result);
-      // Sync wishlist state from API response
-      favoriteBookIds.clear();
-      for (final book in result) {
-        if (book.userContext?.isWishlisted == true) {
-          favoriteBookIds.add(book.id);
-        }
-      }
-      favoriteBookIds.refresh();
+      final result = await Get.find<HomeApiService>().getCatalogBooksPage(
+        page: 1,
+        perPage: _perPage,
+        sort: _apiSort,
+        categorySlug: selectedCategoryKey.value == defaultCategoryKey
+            ? null
+            : selectedCategoryKey.value,
+        status: selectedAvailabilityKey.value == defaultAvailabilityKey
+            ? null
+            : selectedAvailabilityKey.value,
+        year: selectedPublishedYear.value,
+      );
+      books.addAll(result.items);
+      hasMorePages.value = result.hasMorePages;
+      _syncWishlist(result.items);
     } on LuminaApiException catch (e) {
       errorMessage.value = e.displayMessage;
-    } catch (e) {
+    } catch (_) {
       errorMessage.value = 'Gagal memuat buku. Periksa koneksi internet.';
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> loadMoreBooks() async {
+    if (!hasMorePages.value || isLoadingMore.value || isLoading.value) return;
+    loadMoreError.value = '';
+    isLoadingMore.value = true;
+    _currentPage++;
+
+    final before = books.length;
+    debugPrint(
+      '[PAGINATION][CATALOG] nextPageRequest=$_currentPage itemsLoaded=$before',
+    );
+
+    try {
+      final result = await Get.find<HomeApiService>().getCatalogBooksPage(
+        page: _currentPage,
+        perPage: _perPage,
+        sort: _apiSort,
+        categorySlug: selectedCategoryKey.value == defaultCategoryKey
+            ? null
+            : selectedCategoryKey.value,
+        status: selectedAvailabilityKey.value == defaultAvailabilityKey
+            ? null
+            : selectedAvailabilityKey.value,
+        year: selectedPublishedYear.value,
+      );
+      books.addAll(result.items);
+      hasMorePages.value = result.hasMorePages;
+      _syncWishlist(result.items);
+      debugPrint(
+        '[PAGINATION][CATALOG] appended=${result.items.length} '
+        'itemsAfterAppend=${books.length} hasMorePages=${hasMorePages.value}',
+      );
+    } on LuminaApiException catch (e) {
+      _currentPage--;
+      loadMoreError.value = e.displayMessage;
+    } catch (_) {
+      _currentPage--;
+      loadMoreError.value = 'Gagal memuat lebih banyak buku.';
+    } finally {
+      isLoadingMore.value = false;
     }
   }
 
@@ -143,69 +207,28 @@ class LibraryCatalogController extends GetxController {
     isCategoriesLoading.value = true;
 
     try {
-      final service = Get.find<HomeApiService>();
-      final result = await service.getCategories();
+      final result = await Get.find<HomeApiService>().getCategories();
       apiCategories.assignAll(result);
-
-      // Validasi: jika selected category tidak ada lagi di daftar terbaru, reset.
       _validateCategoryFilter();
     } on LuminaApiException catch (_) {
-      // Biarkan apiCategories tetap seperti sebelumnya (atau kosong saat pertama).
+      // silent — filter UI shows with whatever data we have
     } catch (_) {
-      // Silent fail — filter tetap tampil (meski dengan data lama).
+      // silent
     } finally {
       isCategoriesLoading.value = false;
     }
   }
 
-  // ── Filtered data ──────────────────────────────────────────────────────────
+  // ── Filtered data (distance is client-side only) ───────────────────────────
 
   List<BookModel> get filteredBooks {
-    final distanceKey = selectedDistanceKey.value;
-    final categoryKey = selectedCategoryKey.value;
-    final availabilityKey = selectedAvailabilityKey.value;
-    final publishedYear = selectedPublishedYear.value;
-    final sortKey = selectedSortKey.value;
-
-    final result = books.where((book) {
-      final distanceMatched = _isDistanceMatched(
-        book.branch?.distanceKm ?? 0,
-        distanceKey,
-      );
-
-      final categoryMatched = categoryKey == defaultCategoryKey ||
-          (book.category?.slug ?? '') == categoryKey;
-
-      final availabilityMatched = availabilityKey == defaultAvailabilityKey ||
-          (availabilityKey == 'available' && book.isAvailable) ||
-          (availabilityKey == 'borrowed' && !book.isAvailable);
-
-      final publishedYearMatched =
-          publishedYear == null || book.publishYear == publishedYear;
-
-      return distanceMatched &&
-          categoryMatched &&
-          availabilityMatched &&
-          publishedYearMatched;
-    }).toList();
-
-    result.sort((a, b) {
-      switch (sortKey) {
-        case 'nearby':
-          final aDist = a.branch?.distanceKm ?? 0;
-          final bDist = b.branch?.distanceKm ?? 0;
-          return aDist.compareTo(bDist);
-        case 'rating':
-          return b.ratingAverage.compareTo(a.ratingAverage);
-        case 'newest':
-          return (b.publishYear ?? 0).compareTo(a.publishYear ?? 0);
-        case 'popular':
-        default:
-          return b.borrowCount.compareTo(a.borrowCount);
-      }
-    });
-
-    return result;
+    if (selectedDistanceKey.value == defaultDistanceKey) return books.toList();
+    return books
+        .where((b) => _isDistanceMatched(
+              b.branch?.distanceKm ?? 0,
+              selectedDistanceKey.value,
+            ))
+        .toList();
   }
 
   // ── Filter state ───────────────────────────────────────────────────────────
@@ -237,7 +260,10 @@ class LibraryCatalogController extends GetxController {
 
   // ── Filter setters ─────────────────────────────────────────────────────────
 
+  // Distance is client-side — no server reload needed.
   void setDistanceFilter(String value) => selectedDistanceKey.value = value;
+
+  // The rest update UI state only; applyFilters() triggers the server reload.
   void setCategoryFilter(String value) => selectedCategoryKey.value = value;
   void setAvailabilityFilter(String value) =>
       selectedAvailabilityKey.value = value;
@@ -255,7 +281,6 @@ class LibraryCatalogController extends GetxController {
   Future<void> toggleFavorite(String bookId) async {
     final isCurrentlyFav = favoriteBookIds.contains(bookId);
 
-    // Optimistic update
     if (isCurrentlyFav) {
       favoriteBookIds.remove(bookId);
     } else {
@@ -269,7 +294,6 @@ class LibraryCatalogController extends GetxController {
         isCurrentlyFav ? 'Dihapus dari wishlist' : 'Ditambahkan ke wishlist',
       );
     } catch (_) {
-      // Rollback
       if (isCurrentlyFav) {
         favoriteBookIds.add(bookId);
       } else {
@@ -283,20 +307,42 @@ class LibraryCatalogController extends GetxController {
   // ── Private helpers ────────────────────────────────────────────────────────
 
   Future<void> _loadAll() async {
-    // Jalankan keduanya secara paralel.
     await Future.wait([
       loadCategories(),
       loadBooks(),
     ]);
   }
 
+  void _syncWishlist(List<BookModel> newItems) {
+    for (final book in newItems) {
+      if (book.userContext?.isWishlisted == true) {
+        favoriteBookIds.add(book.id);
+      }
+    }
+    favoriteBookIds.refresh();
+  }
+
   void _validateCategoryFilter() {
     final current = selectedCategoryKey.value;
     if (current == defaultCategoryKey) return;
-
     final validSlugs = apiCategories.map((c) => c.slug).toSet();
     if (!validSlugs.contains(current)) {
       selectedCategoryKey.value = defaultCategoryKey;
+    }
+  }
+
+  String get _apiSort {
+    switch (selectedSortKey.value) {
+      case 'nearby':
+        return 'nearest';
+      case 'rating':
+        return 'rating';
+      case 'newest':
+        return 'newest';
+      case 'trending':
+        return 'trending';
+      default:
+        return 'trending';
     }
   }
 

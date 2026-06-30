@@ -47,6 +47,8 @@ class LibraryNearbyLibraryDetailPage extends StatefulWidget {
 
 class _LibraryNearbyLibraryDetailPageState
     extends State<LibraryNearbyLibraryDetailPage> {
+  late final ScrollController _scrollController;
+
   LibraryLocationDetailController get controller =>
       Get.isRegistered<LibraryLocationDetailController>()
           ? Get.find<LibraryLocationDetailController>()
@@ -58,9 +60,27 @@ class _LibraryNearbyLibraryDetailPageState
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController()..addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       controller.loadBranchBooks(currentLibrary.id);
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final max = _scrollController.position.maxScrollExtent;
+    final current = _scrollController.offset;
+    if (max > 0 && current >= max * 0.75) {
+      controller.loadMoreBranchBooks();
+    }
   }
 
   void _goToBookDetail(BookModel book) {
@@ -106,27 +126,35 @@ class _LibraryNearbyLibraryDetailPageState
     final selectedLibrary = currentLibrary;
     final detailController = controller;
 
-    return Obx(
-      () => Scaffold(
-        backgroundColor: LuminaColors.background,
-        body: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            _LibraryDetailAppBar(
-              library: selectedLibrary,
-              onBackTap: () => Navigator.of(context).maybePop(),
-              onSearchTap: () => _goToSearchPage(selectedLibrary),
+    return Scaffold(
+      backgroundColor: LuminaColors.background,
+      body: Obx(
+        () => RefreshIndicator(
+          onRefresh: () => detailController.refreshBranchBooks(selectedLibrary.id),
+          color: LuminaColors.primary,
+          child: CustomScrollView(
+            controller: _scrollController,
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
             ),
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(
-                LuminaSpacing.marginMobile,
-                LuminaSpacing.lg,
-                LuminaSpacing.marginMobile,
-                LuminaSpacing.xl,
+            slivers: [
+              // ── Fixed header ─────────────────────────────────────────────
+              _LibraryDetailAppBar(
+                library: selectedLibrary,
+                onBackTap: () => Navigator.of(context).maybePop(),
+                onSearchTap: () => _goToSearchPage(selectedLibrary),
               ),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate(
-                  [
+
+              // ── Branch info (fixed, not rebuilt when books load) ──────────
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  LuminaSpacing.marginMobile,
+                  LuminaSpacing.lg,
+                  LuminaSpacing.marginMobile,
+                  0,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
                     _LibraryMainInfoCard(
                       library: selectedLibrary,
                       isFavorite: detailController.isFavorite.value,
@@ -138,29 +166,111 @@ class _LibraryNearbyLibraryDetailPageState
                     const SizedBox(height: LuminaSpacing.xl),
                     _LibraryBookSectionHeader(
                       totalBooks: detailController.branchBooks.length,
+                      hasMore: detailController.hasMorePages.value,
                       onSearchTap: () => _goToSearchPage(selectedLibrary),
                     ),
                     const SizedBox(height: LuminaSpacing.md),
-                    if (detailController.isLoadingBooks.value)
-                      const Padding(
-                        padding: EdgeInsets.only(top: LuminaSpacing.sm),
-                        child: LuminaCatalogBookGridSkeleton(count: 6),
-                      )
-                    else
-                      _LibraryBookGrid(
-                        books: detailController.branchBooks.toList(),
-                        onBookTap: _goToBookDetail,
-                      ),
-                  ],
+                  ]),
                 ),
               ),
-            ),
-          ],
+
+              // ── Book grid (grows with infinite scroll) ────────────────────
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: LuminaSpacing.marginMobile,
+                ),
+                sliver: SliverToBoxAdapter(
+                  child: detailController.isLoadingBooks.value
+                      ? const LuminaCatalogBookGridSkeleton(count: 6)
+                      : _LibraryBookGrid(
+                          books: detailController.branchBooks.toList(),
+                          onBookTap: _goToBookDetail,
+                        ),
+                ),
+              ),
+
+              // ── Bottom loading indicator ──────────────────────────────────
+              if (detailController.isLoadingMore.value)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding:
+                        EdgeInsets.symmetric(vertical: LuminaSpacing.lg),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: LuminaColors.primary,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // ── Load-more error with retry ────────────────────────────────
+              if (detailController.loadMoreError.value.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _LoadMoreRetryButton(
+                    message: detailController.loadMoreError.value,
+                    onRetry: detailController.loadMoreBranchBooks,
+                  ),
+                ),
+
+              const SliverToBoxAdapter(
+                child: SizedBox(height: LuminaSpacing.xl),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
+
+// ── Load-more retry ───────────────────────────────────────────────────────────
+
+class _LoadMoreRetryButton extends StatelessWidget {
+  const _LoadMoreRetryButton({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: LuminaSpacing.marginMobile,
+        vertical: LuminaSpacing.md,
+      ),
+      child: Column(
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: LuminaTextStyles.bodySm.copyWith(
+              color: LuminaColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: LuminaSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Coba Lagi'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: LuminaColors.primary,
+              side: const BorderSide(color: LuminaColors.primary),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(LuminaRadius.lg),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── App bar ───────────────────────────────────────────────────────────────────
 
 class _LibraryDetailAppBar extends StatelessWidget {
   const _LibraryDetailAppBar({
@@ -204,7 +314,6 @@ class _LibraryDetailAppBar extends StatelessWidget {
               filterQuality: FilterQuality.high,
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
-
                 return Container(
                   color: LuminaColors.surfaceContainer,
                   child: const Center(
@@ -370,6 +479,8 @@ class _OpenStatusChip extends StatelessWidget {
   }
 }
 
+// ── Branch info cards ─────────────────────────────────────────────────────────
+
 class _LibraryMainInfoCard extends StatelessWidget {
   const _LibraryMainInfoCard({
     required this.library,
@@ -390,10 +501,7 @@ class _LibraryMainInfoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: LuminaColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(LuminaRadius.xl),
-        border: Border.all(
-          color: LuminaColors.surfaceVariant,
-          width: 1,
-        ),
+        border: Border.all(color: LuminaColors.surfaceVariant, width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -578,21 +686,11 @@ class _OperationalHoursCard extends StatelessWidget {
       title: 'Jam Operasional',
       child: Column(
         children: const [
-          _OperationalHourRow(
-            day: 'Senin - Jumat',
-            time: '08:00 - 20:00',
-          ),
+          _OperationalHourRow(day: 'Senin - Jumat', time: '08:00 - 20:00'),
           SizedBox(height: LuminaSpacing.xs),
-          _OperationalHourRow(
-            day: 'Sabtu',
-            time: '09:00 - 15:00',
-          ),
+          _OperationalHourRow(day: 'Sabtu', time: '09:00 - 15:00'),
           SizedBox(height: LuminaSpacing.xs),
-          _OperationalHourRow(
-            day: 'Minggu',
-            time: 'Tutup',
-            isClosed: true,
-          ),
+          _OperationalHourRow(day: 'Minggu', time: 'Tutup', isClosed: true),
         ],
       ),
     );
@@ -618,9 +716,8 @@ class _OperationalHourRow extends StatelessWidget {
           child: Text(
             day,
             style: LuminaTextStyles.bodyMd.copyWith(
-              color: isClosed
-                  ? LuminaColors.error
-                  : LuminaColors.onSurfaceVariant,
+              color:
+                  isClosed ? LuminaColors.error : LuminaColors.onSurfaceVariant,
             ),
           ),
         ),
@@ -678,10 +775,7 @@ class _InfoCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: LuminaColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(LuminaRadius.xl),
-        border: Border.all(
-          color: LuminaColors.surfaceVariant,
-          width: 1,
-        ),
+        border: Border.all(color: LuminaColors.surfaceVariant, width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -757,17 +851,23 @@ class _FacilityChip extends StatelessWidget {
   }
 }
 
+// ── Book section header ───────────────────────────────────────────────────────
+
 class _LibraryBookSectionHeader extends StatelessWidget {
   const _LibraryBookSectionHeader({
     required this.totalBooks,
+    required this.hasMore,
     required this.onSearchTap,
   });
 
   final int totalBooks;
+  final bool hasMore;
   final VoidCallback onSearchTap;
 
   @override
   Widget build(BuildContext context) {
+    final countLabel = hasMore ? '$totalBooks+ buku' : '$totalBooks buku';
+
     return Row(
       children: [
         Expanded(
@@ -780,7 +880,7 @@ class _LibraryBookSectionHeader extends StatelessWidget {
           ),
         ),
         Text(
-          '$totalBooks buku',
+          countLabel,
           style: LuminaTextStyles.labelMd.copyWith(
             color: LuminaColors.onSurfaceVariant,
             fontWeight: FontWeight.w800,
@@ -809,6 +909,8 @@ class _LibraryBookSectionHeader extends StatelessWidget {
     );
   }
 }
+
+// ── Book grid ─────────────────────────────────────────────────────────────────
 
 class _LibraryBookGrid extends StatelessWidget {
   const _LibraryBookGrid({
@@ -872,4 +974,3 @@ class _LibraryBookGrid extends StatelessWidget {
     );
   }
 }
-

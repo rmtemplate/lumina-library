@@ -33,6 +33,8 @@ class LibraryCatalogPage extends StatefulWidget {
 }
 
 class _LibraryCatalogPageState extends State<LibraryCatalogPage> {
+  late final ScrollController _scrollController;
+
   LibraryCatalogController get controller =>
       Get.isRegistered<LibraryCatalogController>()
           ? Get.find<LibraryCatalogController>()
@@ -41,16 +43,23 @@ class _LibraryCatalogPageState extends State<LibraryCatalogPage> {
   @override
   void initState() {
     super.initState();
-
+    _scrollController = ScrollController()..addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _applyInitialCategoryFilter();
     });
   }
 
   @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(covariant LibraryCatalogPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-
     if (oldWidget.initialCategoryKey != widget.initialCategoryKey) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _applyInitialCategoryFilter();
@@ -60,12 +69,17 @@ class _LibraryCatalogPageState extends State<LibraryCatalogPage> {
 
   void _applyInitialCategoryFilter() {
     final categoryKey = widget.initialCategoryKey;
+    if (categoryKey == null || categoryKey.trim().isEmpty) return;
+    controller.applyInitialCategory(categoryKey.trim());
+  }
 
-    if (categoryKey == null || categoryKey.trim().isEmpty) {
-      return;
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final max = _scrollController.position.maxScrollExtent;
+    final current = _scrollController.offset;
+    if (max > 0 && current >= max * 0.75) {
+      controller.loadMoreBooks();
     }
-
-    controller.setCategoryFilter(categoryKey.trim());
   }
 
   void _handleBookTap(BookModel book) {
@@ -92,9 +106,7 @@ class _LibraryCatalogPageState extends State<LibraryCatalogPage> {
 
   void _openFilterSheet(LibraryCatalogController catalogController) {
     Get.bottomSheet<void>(
-      _CatalogFilterBottomSheet(
-        controller: catalogController,
-      ),
+      _CatalogFilterBottomSheet(controller: catalogController),
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black.withOpacity(0.4),
@@ -124,7 +136,10 @@ class _LibraryCatalogPageState extends State<LibraryCatalogPage> {
           Expanded(
             child: Obx(
               () {
-                if (catalogController.isLoading.value) {
+                final cat = catalogController;
+
+                // Initial load skeleton
+                if (cat.isLoading.value && cat.books.isEmpty) {
                   return SingleChildScrollView(
                     physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.fromLTRB(
@@ -137,40 +152,69 @@ class _LibraryCatalogPageState extends State<LibraryCatalogPage> {
                   );
                 }
 
-                if (catalogController.errorMessage.value.isNotEmpty &&
-                    catalogController.books.isEmpty) {
+                // Full error state (no books at all)
+                if (cat.errorMessage.value.isNotEmpty && cat.books.isEmpty) {
                   return _CatalogErrorState(
-                    message: catalogController.errorMessage.value,
-                    onRetry: catalogController.loadBooks,
+                    message: cat.errorMessage.value,
+                    onRetry: cat.loadBooks,
                   );
                 }
 
-                final books = catalogController.filteredBooks;
+                final books = cat.filteredBooks;
 
-                return CustomScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  slivers: [
-                    const SliverToBoxAdapter(
-                      child: SizedBox(height: LuminaSpacing.md),
+                return RefreshIndicator(
+                  onRefresh: cat.loadBooks,
+                  color: LuminaColors.primary,
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
                     ),
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(
-                        LuminaSpacing.marginMobile,
-                        0,
-                        LuminaSpacing.marginMobile,
-                        LuminaSpacing.xl,
+                    slivers: [
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: LuminaSpacing.md),
                       ),
-                      sliver: SliverToBoxAdapter(
-                        child: _CatalogBookGrid(
-                          books: books,
-                          favoriteBookIds:
-                              catalogController.favoriteBookIds.toSet(),
-                          onBookTap: _handleBookTap,
-                          onFavoriteTap: catalogController.toggleFavorite,
+                      SliverPadding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: LuminaSpacing.marginMobile,
+                        ),
+                        sliver: SliverToBoxAdapter(
+                          child: _CatalogBookGrid(
+                            books: books,
+                            favoriteBookIds: cat.favoriteBookIds.toSet(),
+                            onBookTap: _handleBookTap,
+                            onFavoriteTap: cat.toggleFavorite,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      // Bottom loading indicator
+                      if (cat.isLoadingMore.value)
+                        const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              vertical: LuminaSpacing.lg,
+                            ),
+                            child: Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: LuminaColors.primary,
+                              ),
+                            ),
+                          ),
+                        ),
+                      // Load-more error with retry
+                      if (cat.loadMoreError.value.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: _LoadMoreRetryButton(
+                            message: cat.loadMoreError.value,
+                            onRetry: cat.loadMoreBooks,
+                          ),
+                        ),
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: LuminaSpacing.xl),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -180,6 +224,8 @@ class _LibraryCatalogPageState extends State<LibraryCatalogPage> {
     );
   }
 }
+
+// ── Top bar ───────────────────────────────────────────────────────────────────
 
 class _CatalogTopBar extends StatelessWidget {
   const _CatalogTopBar({
@@ -232,7 +278,6 @@ class _CatalogTopBar extends StatelessWidget {
                 ),
                 const SizedBox(width: LuminaSpacing.xs),
               ],
-
               Expanded(
                 child: Text(
                   title,
@@ -245,9 +290,7 @@ class _CatalogTopBar extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(width: LuminaSpacing.sm),
-
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -311,9 +354,7 @@ class _TopBarIconButton extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: isActive
-                    ? LuminaColors.primary
-                    : LuminaColors.onSurface,
+                color: isActive ? LuminaColors.primary : LuminaColors.onSurface,
                 size: 24,
               ),
               if (badgeCount > 0)
@@ -359,10 +400,10 @@ class _TopBarIconButton extends StatelessWidget {
   }
 }
 
+// ── Filter bottom sheet ────────────────────────────────────────────────────────
+
 class _CatalogFilterBottomSheet extends StatelessWidget {
-  const _CatalogFilterBottomSheet({
-    required this.controller,
-  });
+  const _CatalogFilterBottomSheet({required this.controller});
 
   final LibraryCatalogController controller;
 
@@ -422,7 +463,12 @@ class _CatalogFilterBottomSheet extends StatelessWidget {
                               ),
                             ),
                             TextButton(
-                              onPressed: controller.resetFilters,
+                              onPressed: () {
+                                controller.resetFilters();
+                                // Apply reset immediately (server reload)
+                                controller.applyFilters();
+                                Get.back<void>();
+                              },
                               style: TextButton.styleFrom(
                                 foregroundColor: LuminaColors.secondary,
                                 padding: const EdgeInsets.symmetric(
@@ -460,8 +506,7 @@ class _CatalogFilterBottomSheet extends StatelessWidget {
                           _FilterSection<String>(
                             title: 'Kategori Buku',
                             options: controller.categoryOptions,
-                            selectedValue:
-                                controller.selectedCategoryKey.value,
+                            selectedValue: controller.selectedCategoryKey.value,
                             onChanged: controller.setCategoryFilter,
                           ),
                           const SizedBox(height: LuminaSpacing.xl),
@@ -476,8 +521,7 @@ class _CatalogFilterBottomSheet extends StatelessWidget {
                           _FilterSection<int?>(
                             title: 'Tahun Terbit',
                             options: controller.publishedYearOptions,
-                            selectedValue:
-                                controller.selectedPublishedYear.value,
+                            selectedValue: controller.selectedPublishedYear.value,
                             onChanged: controller.setPublishedYearFilter,
                           ),
                           const SizedBox(height: LuminaSpacing.xl),
@@ -511,7 +555,10 @@ class _CatalogFilterBottomSheet extends StatelessWidget {
                       width: double.infinity,
                       height: 52,
                       child: ElevatedButton(
-                        onPressed: Get.back,
+                        onPressed: () {
+                          Get.back<void>();
+                          controller.applyFilters();
+                        },
                         style: ElevatedButton.styleFrom(
                           elevation: 0,
                           backgroundColor: LuminaColors.primary,
@@ -559,10 +606,7 @@ class _FilterSection<T> extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(
-            bottom: LuminaSpacing.sm,
-            left: 4,
-          ),
+          padding: const EdgeInsets.only(bottom: LuminaSpacing.sm, left: 4),
           child: Text(
             title,
             style: LuminaTextStyles.titleSm.copyWith(
@@ -584,7 +628,6 @@ class _FilterSection<T> extends StatelessWidget {
             children: List.generate(options.length, (index) {
               final option = options[index];
               final isLast = index == options.length - 1;
-
               return Column(
                 children: [
                   _FilterOptionTile<T>(
@@ -675,6 +718,8 @@ class _FilterOptionTile<T> extends StatelessWidget {
   }
 }
 
+// ── Book grid ─────────────────────────────────────────────────────────────────
+
 class _CatalogBookGrid extends StatelessWidget {
   const _CatalogBookGrid({
     required this.books,
@@ -697,7 +742,7 @@ class _CatalogBookGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final crossAxisCount = _getCrossAxisCount(constraints.maxWidth);
-        final spacing = LuminaSpacing.md;
+        const spacing = LuminaSpacing.md;
         final cardWidth =
             (constraints.maxWidth - ((crossAxisCount - 1) * spacing)) /
                 crossAxisCount;
@@ -707,7 +752,6 @@ class _CatalogBookGrid extends StatelessWidget {
           runSpacing: spacing + 8,
           children: List.generate(books.length, (index) {
             final book = books[index];
-
             return LibraryTrendingBookCard(
               width: cardWidth,
               title: book.title,
@@ -735,10 +779,11 @@ class _CatalogBookGrid extends StatelessWidget {
   int _getCrossAxisCount(double width) {
     if (width >= 960) return 4;
     if (width >= 680) return 3;
-
     return 2;
   }
 }
+
+// ── Feedback widgets ──────────────────────────────────────────────────────────
 
 class _CatalogErrorState extends StatelessWidget {
   const _CatalogErrorState({
@@ -787,6 +832,50 @@ class _CatalogErrorState extends StatelessWidget {
   }
 }
 
+class _LoadMoreRetryButton extends StatelessWidget {
+  const _LoadMoreRetryButton({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: LuminaSpacing.marginMobile,
+        vertical: LuminaSpacing.md,
+      ),
+      child: Column(
+        children: [
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: LuminaTextStyles.bodySm.copyWith(
+              color: LuminaColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: LuminaSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Coba Lagi'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: LuminaColors.primary,
+              side: const BorderSide(color: LuminaColors.primary),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(LuminaRadius.lg),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CatalogEmptyState extends StatelessWidget {
   const _CatalogEmptyState();
 
@@ -830,7 +919,7 @@ class _CatalogEmptyState extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Text(
-                'Coba ubah filter di atas atau gunakan kata kunci pencarian yang lain.',
+                'Coba ubah filter atau gunakan kata kunci pencarian yang lain.',
                 textAlign: TextAlign.center,
                 style: LuminaTextStyles.bodyMd.copyWith(
                   color: LuminaColors.onSurfaceVariant,
