@@ -204,6 +204,31 @@ class StaffApiService {
     return response.data ?? {};
   }
 
+  /// GET /api/v1/staff/borrowings/{id} — full detail with member, items, timeline.
+  Future<Map<String, dynamic>> getBorrowingDetail(String borrowingId) async {
+    final response = await _client.get<Map<String, dynamic>>(
+      '/staff/borrowings/$borrowingId',
+      fromData: (data) => data as Map<String, dynamic>,
+    );
+    return response.data ?? {};
+  }
+
+  /// GET /api/v1/staff/borrowings?status=&per_page=
+  Future<List<Map<String, dynamic>>> listBorrowings({
+    String? status,
+    int perPage = 20,
+  }) async {
+    final response = await _client.get<List<dynamic>>(
+      '/staff/borrowings',
+      query: {
+        if (status != null) 'status': status,
+        'per_page': '$perPage',
+      },
+      fromData: (data) => data as List<dynamic>,
+    );
+    return (response.data ?? []).whereType<Map<String, dynamic>>().toList();
+  }
+
   /// GET /api/v1/staff/reports?period=
   Future<Map<String, dynamic>> getReport({String period = 'month'}) async {
     final response = await _client.get<Map<String, dynamic>>(

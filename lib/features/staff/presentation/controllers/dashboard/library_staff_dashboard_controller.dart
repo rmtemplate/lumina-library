@@ -8,8 +8,14 @@ import 'package:lumina_library/core/services/websocket/websocket_event.dart';
 import 'package:lumina_library/core/services/websocket/websocket_service.dart';
 import 'package:lumina_library/features/staff/data/services/staff_api_service.dart';
 import 'package:lumina_library/features/staff/presentation/controllers/home/staff_home_controller.dart';
+import 'package:lumina_library/features/staff/presentation/controllers/payment/staff_payments_controller.dart';
+import 'package:lumina_library/features/staff/presentation/pages/borrow/staff_borrowing_list_page.dart';
 import 'package:lumina_library/features/staff/presentation/pages/member/staff_member_registration_page.dart';
+import 'package:lumina_library/features/staff/presentation/pages/payment/staff_payments_page.dart';
+import 'package:lumina_library/features/staff/presentation/pages/rack/manage_rack_page.dart';
 import 'package:lumina_library/features/staff/presentation/pages/scan/staff_scan_page.dart';
+import 'package:lumina_library/features/staff/presentation/pages/borrow/staff_borrowing_detail_page.dart';
+import 'package:lumina_library/features/staff/presentation/widgets/dashboard/staff_dashboard_bottom_sheets.dart';
 
 import '../../../../../core/theme/lumina_colors.dart';
 import '../../../../../shared/widgets/feedback/lumina_toast.dart';
@@ -180,14 +186,16 @@ class LibraryStaffDashboardController extends GetxController {
         'awaiting_pickup' => Icons.hourglass_top_rounded,
         'active' => Icons.menu_book_rounded,
         'overdue' => Icons.warning_rounded,
+        'ready_for_return' => Icons.assignment_return_rounded,
         'waiting_payment' => Icons.payments_rounded,
-        'returned' => Icons.assignment_return_rounded,
+        'returned' => Icons.assignment_turned_in_rounded,
         _ => Icons.circle_notifications_rounded,
       };
 
   Color _colorForStatus(String status) => switch (status) {
         'overdue' || 'waiting_payment' => LuminaColors.error,
-        'returned' => LuminaColors.secondary,
+        'ready_for_return' => LuminaColors.secondary,
+        'returned' => LuminaColors.onSurfaceVariant,
         _ => LuminaColors.primary,
       };
 
@@ -195,8 +203,9 @@ class LibraryStaffDashboardController extends GetxController {
         'awaiting_pickup' => 'Menunggu pengambilan',
         'active' => 'Sedang dipinjam',
         'overdue' => 'Terlambat',
+        'ready_for_return' => 'Siap dikembalikan',
         'waiting_payment' => 'Menunggu pembayaran',
-        'returned' => 'Sudah dikembalikan',
+        'returned' => 'Selesai',
         _ => status,
       };
 
@@ -223,6 +232,68 @@ class LibraryStaffDashboardController extends GetxController {
           unawaited(_loadDashboard());
       }
     });
+  }
+
+  void handleStatTap(String statId) {
+    switch (statId) {
+      case 'active_borrowings':
+        Get.to(() => const StaffBorrowingListPage(title: 'Dipinjam Aktif', initialStatus: 'active'));
+      case 'overdue':
+        Get.to(() => const StaffBorrowingListPage(title: 'Terlambat', initialStatus: 'overdue'));
+      case 'today_borrowings':
+        Get.to(() => const StaffBorrowingListPage(title: 'Pinjam Hari Ini'));
+      case 'today_returns':
+        Get.to(() => const StaffBorrowingListPage(title: 'Kembali Hari Ini', initialStatus: 'returned'));
+      case 'awaiting_pickup':
+        Get.to(() => const StaffBorrowingListPage(title: 'Menunggu Ambil', initialStatus: 'awaiting_pickup'));
+      case 'pending_payments':
+        _goToPayments(tab: 0);
+      default:
+        if (Get.isRegistered<StaffHomeController>()) {
+          Get.find<StaffHomeController>().changeIndex(2);
+        }
+    }
+  }
+
+  void _goToPayments({int tab = 0}) {
+    final c = Get.isRegistered<StaffPaymentsController>()
+        ? Get.find<StaffPaymentsController>()
+        : Get.put(StaffPaymentsController(), permanent: true);
+    c.selectedTabIndex.value = tab;
+    Get.to(() => const StaffPaymentsPage());
+  }
+
+  void handleBookTap(StaffPopularBookModel book) {
+    Get.bottomSheet(
+      StaffBookDetailSheet(book: book),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+    );
+  }
+
+  void handleRackTap(StaffRackOverviewModel rack) {
+    Get.to(() => ManageRackPage(rackId: rack.id));
+  }
+
+  void handleActivityTap(StaffRecentActivityModel activity) {
+    if (activity.borrowingId.isNotEmpty) {
+      Get.to(() => StaffBorrowingDetailPage(
+            borrowingId: activity.borrowingId,
+            borrowingCode: activity.borrowingCode,
+          ));
+      return;
+    }
+    Get.bottomSheet(
+      StaffActivityDetailSheet(activity: activity),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+    );
+  }
+
+  void handleChartTap() {
+    if (Get.isRegistered<StaffHomeController>()) {
+      Get.find<StaffHomeController>().changeIndex(2);
+    }
   }
 
   void handleNotificationTap() {

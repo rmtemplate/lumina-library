@@ -4,7 +4,8 @@ enum LibraryMyBookStatus {
   active,          // sedang dipinjam, masa pinjam normal
   dueSoon,         // akan jatuh tempo dalam beberapa hari
   overdue,         // melewati batas pengembalian
-  finished,        // sudah dikembalikan
+  readyForReturn,  // denda dilunasi, buku siap dikembalikan
+  finished,        // sudah dikembalikan (completed)
   waitingPayment,  // menunggu pembayaran denda
   expired,         // reservasi kadaluwarsa
   cancelled,       // dibatalkan
@@ -89,6 +90,7 @@ class LibraryMyBookItemModel {
   bool get isActive => status == LibraryMyBookStatus.active;
   bool get isDueSoon => status == LibraryMyBookStatus.dueSoon;
   bool get isOverdue => status == LibraryMyBookStatus.overdue;
+  bool get isReadyForReturn => status == LibraryMyBookStatus.readyForReturn;
   bool get isFinished => status == LibraryMyBookStatus.finished;
   bool get isAwaitingPickup => status == LibraryMyBookStatus.awaitingPickup;
   bool get isPending => status == LibraryMyBookStatus.pending;
@@ -134,8 +136,10 @@ class LibraryMyBookItemModel {
         return 'Due Soon';
       case LibraryMyBookStatus.overdue:
         return 'Overdue';
+      case LibraryMyBookStatus.readyForReturn:
+        return 'Ready to Return';
       case LibraryMyBookStatus.finished:
-        return 'Returned';
+        return 'Completed';
       case LibraryMyBookStatus.waitingPayment:
         return 'Waiting Payment';
       case LibraryMyBookStatus.expired:
@@ -156,7 +160,9 @@ class LibraryMyBookItemModel {
       case LibraryMyBookStatus.dueSoon:
         return 'Segera Dikembalikan';
       case LibraryMyBookStatus.overdue:
-        return 'Kadaluwarsa';
+        return 'Terlambat';
+      case LibraryMyBookStatus.readyForReturn:
+        return 'Siap Dikembalikan';
       case LibraryMyBookStatus.finished:
         return 'Selesai';
       case LibraryMyBookStatus.waitingPayment:
@@ -182,6 +188,8 @@ class LibraryMyBookItemModel {
         return 'Jatuh tempo dalam $remainingDays hari';
       case LibraryMyBookStatus.overdue:
         return 'Lewat jatuh tempo $overdueDays hari';
+      case LibraryMyBookStatus.readyForReturn:
+        return 'Denda lunas · kembalikan buku ke perpustakaan';
       case LibraryMyBookStatus.finished:
         return returnedDateText == null
             ? 'Sudah dikembalikan'
@@ -289,6 +297,8 @@ class LibraryMyBookItemModel {
         return LibraryMyBookStatus.dueSoon;
       case 'overdue':
         return LibraryMyBookStatus.overdue;
+      case 'ready_for_return':
+        return LibraryMyBookStatus.readyForReturn;
       case 'returned':
       case 'returned_with_fine':
         return LibraryMyBookStatus.finished;

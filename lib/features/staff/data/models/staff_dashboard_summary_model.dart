@@ -167,6 +167,7 @@ class StaffPopularBookModel {
     required this.borrowCount,
     required this.availableCount,
     this.coverUrl,
+    this.category,
   });
 
   final String id;
@@ -175,6 +176,7 @@ class StaffPopularBookModel {
   final int borrowCount;
   final int availableCount;
   final String? coverUrl;
+  final String? category;
 
   bool get isAvailable => availableCount > 0;
 
@@ -185,6 +187,7 @@ class StaffPopularBookModel {
         borrowCount: (json['borrow_count'] as num?)?.toInt() ?? 0,
         availableCount: (json['available_count'] as num?)?.toInt() ?? 0,
         coverUrl: json['cover_url']?.toString(),
+        category: json['category']?.toString(),
       );
 }
 

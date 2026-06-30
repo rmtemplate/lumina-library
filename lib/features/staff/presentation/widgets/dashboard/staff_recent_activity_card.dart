@@ -6,9 +6,10 @@ import '../../../../../core/theme/lumina_text_styles.dart';
 import '../../../data/models/staff_dashboard_summary_model.dart';
 
 class StaffRecentActivitySection extends StatelessWidget {
-  const StaffRecentActivitySection({super.key, required this.activities});
+  const StaffRecentActivitySection({super.key, required this.activities, this.onTap});
 
   final List<StaffRecentActivityModel> activities;
+  final void Function(StaffRecentActivityModel activity)? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +60,10 @@ class StaffRecentActivitySection extends StatelessWidget {
                               ),
                             ),
                           ),
-                    child: StaffActivityTile(activity: activities[i]),
+                    child: StaffActivityTile(
+                      activity: activities[i],
+                      onTap: onTap != null ? () => onTap!(activities[i]) : null,
+                    ),
                   );
                 }),
               ),
@@ -71,9 +75,10 @@ class StaffRecentActivitySection extends StatelessWidget {
 }
 
 class StaffActivityTile extends StatelessWidget {
-  const StaffActivityTile({super.key, required this.activity});
+  const StaffActivityTile({super.key, required this.activity, this.onTap});
 
   final StaffRecentActivityModel activity;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +87,7 @@ class StaffActivityTile extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {},
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(LuminaSpacing.md),
           child: Row(

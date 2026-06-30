@@ -6,12 +6,11 @@ import '../../../../../core/theme/lumina_text_styles.dart';
 import '../../../data/models/staff_dashboard_summary_model.dart';
 import 'library_staff_dashboard_widgets.dart';
 
-/// Tab selector + chart content. The chart widgets (LibraryStaffBorrowingTrendChart,
-/// etc.) render their own card styling, so this widget only owns the chip row.
 class StaffChartSection extends StatefulWidget {
-  const StaffChartSection({super.key, required this.charts});
+  const StaffChartSection({super.key, required this.charts, this.onViewReport});
 
   final StaffDashboardChartsModel charts;
+  final VoidCallback? onViewReport;
 
   @override
   State<StaffChartSection> createState() => _StaffChartSectionState();
@@ -27,53 +26,82 @@ class _StaffChartSectionState extends State<StaffChartSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Tab chip selector
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: LuminaSpacing.marginMobile),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: List.generate(_tabs.length, (i) {
-                final selected = _selected == i;
-                return Padding(
-                  padding: EdgeInsets.only(right: i < _tabs.length - 1 ? LuminaSpacing.xs : 0),
-                  child: GestureDetector(
-                    onTap: () => setState(() => _selected = i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: LuminaSpacing.sm,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected ? LuminaColors.primary : LuminaColors.surfaceContainerLow,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: selected
-                              ? LuminaColors.primary
-                              : LuminaColors.outlineVariant.withOpacity(0.40),
-                          width: 1,
+          child: Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: List.generate(_tabs.length, (i) {
+                      final selected = _selected == i;
+                      return Padding(
+                        padding: EdgeInsets.only(
+                          right: i < _tabs.length - 1 ? LuminaSpacing.xs : 0,
                         ),
-                      ),
-                      child: Text(
-                        _tabs[i],
-                        style: LuminaTextStyles.labelMd.copyWith(
-                          color: selected ? LuminaColors.onPrimary : LuminaColors.onSurfaceVariant,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0,
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selected = i),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: LuminaSpacing.sm,
+                              vertical: 7,
+                            ),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? LuminaColors.primary
+                                  : LuminaColors.surfaceContainerLow,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: selected
+                                    ? LuminaColors.primary
+                                    : LuminaColors.outlineVariant.withOpacity(0.40),
+                                width: 1,
+                              ),
+                            ),
+                            child: Text(
+                              _tabs[i],
+                              style: LuminaTextStyles.labelMd.copyWith(
+                                color: selected
+                                    ? LuminaColors.onPrimary
+                                    : LuminaColors.onSurfaceVariant,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    }),
                   ),
-                );
-              }),
-            ),
+                ),
+              ),
+              if (widget.onViewReport != null) ...[
+                const SizedBox(width: LuminaSpacing.xs),
+                TextButton(
+                  onPressed: widget.onViewReport,
+                  style: TextButton.styleFrom(
+                    foregroundColor: LuminaColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: LuminaSpacing.xs,
+                      vertical: 4,
+                    ),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'Lihat Laporan',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
 
         const SizedBox(height: LuminaSpacing.sm),
 
-        // Chart content — each widget provides its own card styling
         _chartContent(),
       ],
     );
@@ -100,7 +128,9 @@ class _StaffChartSectionState extends State<StaffChartSection> {
                   child: Center(
                     child: Text(
                       'Belum ada data kategori bulan ini.',
-                      style: LuminaTextStyles.bodyMd.copyWith(color: LuminaColors.onSurfaceVariant),
+                      style: LuminaTextStyles.bodyMd.copyWith(
+                        color: LuminaColors.onSurfaceVariant,
+                      ),
                     ),
                   ),
                 ),

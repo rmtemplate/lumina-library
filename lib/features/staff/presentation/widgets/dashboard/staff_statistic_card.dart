@@ -6,9 +6,10 @@ import '../../../../../core/theme/lumina_text_styles.dart';
 import '../../models/staff_dashboard_model.dart';
 
 class StaffStatisticRow extends StatelessWidget {
-  const StaffStatisticRow({super.key, required this.items});
+  const StaffStatisticRow({super.key, required this.items, this.onTap});
 
   final List<StaffDashboardStatModel> items;
+  final void Function(String statId)? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +20,10 @@ class StaffStatisticRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: LuminaSpacing.marginMobile),
         itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(width: LuminaSpacing.gutterMobile),
-        itemBuilder: (_, i) => StaffStatisticCard(item: items[i]),
+        itemBuilder: (_, i) => StaffStatisticCard(
+          item: items[i],
+          onTap: onTap != null ? () => onTap!(items[i].id) : null,
+        ),
       ),
     );
   }
@@ -36,64 +40,69 @@ class StaffStatisticCard extends StatelessWidget {
     final isAlert = item.borderColor != null;
     final accentColor = isAlert ? LuminaColors.error : item.foregroundColor;
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 140,
-        padding: const EdgeInsets.all(LuminaSpacing.md),
-        decoration: BoxDecoration(
-          color: item.backgroundColor,
-          borderRadius: BorderRadius.circular(16),
-          border: item.borderColor != null
-              ? Border.all(color: item.borderColor!, width: 1)
-              : null,
-          boxShadow: [
-            BoxShadow(
-              color: item.backgroundColor.withOpacity(0.22),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: accentColor.withOpacity(0.15),
-                shape: BoxShape.circle,
+    return Material(
+      color: item.backgroundColor,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        splashColor: item.foregroundColor.withOpacity(0.15),
+        child: Container(
+          width: 140,
+          padding: const EdgeInsets.all(LuminaSpacing.md),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: item.borderColor != null
+                ? Border.all(color: item.borderColor!, width: 1)
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: item.backgroundColor.withOpacity(0.22),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
-              child: Icon(item.icon, size: 18, color: item.foregroundColor.withOpacity(0.85)),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _AnimatedCounter(
-                  value: int.tryParse(item.value) ?? 0,
-                  style: LuminaTextStyles.titleLg.copyWith(
-                    color: item.foregroundColor,
-                    fontWeight: FontWeight.w900,
-                    height: 1.1,
-                  ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: accentColor.withOpacity(0.15),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  item.label,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: LuminaTextStyles.labelMd.copyWith(
-                    color: item.foregroundColor.withOpacity(0.72),
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
-                    fontSize: 10,
+                child: Icon(item.icon, size: 18, color: item.foregroundColor.withOpacity(0.85)),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _AnimatedCounter(
+                    value: int.tryParse(item.value) ?? 0,
+                    style: LuminaTextStyles.titleLg.copyWith(
+                      color: item.foregroundColor,
+                      fontWeight: FontWeight.w900,
+                      height: 1.1,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(height: 2),
+                  Text(
+                    item.label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: LuminaTextStyles.labelMd.copyWith(
+                      color: item.foregroundColor.withOpacity(0.72),
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

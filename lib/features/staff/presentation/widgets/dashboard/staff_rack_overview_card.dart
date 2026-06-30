@@ -6,9 +6,10 @@ import '../../../../../core/theme/lumina_text_styles.dart';
 import '../../../data/models/staff_dashboard_summary_model.dart';
 
 class StaffRackOverviewSection extends StatelessWidget {
-  const StaffRackOverviewSection({super.key, required this.racks});
+  const StaffRackOverviewSection({super.key, required this.racks, this.onTap});
 
   final List<StaffRackOverviewModel> racks;
+  final void Function(StaffRackOverviewModel rack)? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +44,10 @@ class StaffRackOverviewSection extends StatelessWidget {
                         ),
                       ),
                     ),
-              child: StaffRackOverviewTile(rack: racks[i]),
+              child: StaffRackOverviewTile(
+                rack: racks[i],
+                onTap: onTap != null ? () => onTap!(racks[i]) : null,
+              ),
             );
           }),
         ),
@@ -53,9 +57,10 @@ class StaffRackOverviewSection extends StatelessWidget {
 }
 
 class StaffRackOverviewTile extends StatelessWidget {
-  const StaffRackOverviewTile({super.key, required this.rack});
+  const StaffRackOverviewTile({super.key, required this.rack, this.onTap});
 
   final StaffRackOverviewModel rack;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -66,102 +71,113 @@ class StaffRackOverviewTile extends StatelessWidget {
             ? LuminaColors.onTertiaryContainer
             : LuminaColors.secondary;
 
-    return Padding(
-      padding: const EdgeInsets.all(LuminaSpacing.md),
-      child: Row(
-        children: [
-          // Rack icon
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: LuminaColors.primaryContainer,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(
-              Icons.shelves,
-              size: 20,
-              color: LuminaColors.onPrimaryContainer,
-            ),
-          ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(LuminaSpacing.md),
+          child: Row(
+            children: [
+              // Rack icon
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: LuminaColors.primaryContainer,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.shelves,
+                  size: 20,
+                  color: LuminaColors.onPrimaryContainer,
+                ),
+              ),
 
-          const SizedBox(width: LuminaSpacing.md),
+              const SizedBox(width: LuminaSpacing.md),
 
-          // Info + progress
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              // Info + progress
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        rack.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: LuminaTextStyles.bodyMd.copyWith(
-                          color: LuminaColors.onBackground,
-                          fontWeight: FontWeight.w800,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            rack.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: LuminaTextStyles.bodyMd.copyWith(
+                              color: LuminaColors.onBackground,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: LuminaSpacing.xs),
+                        Text(
+                          rack.rackCode,
+                          style: LuminaTextStyles.labelMd.copyWith(
+                            color: LuminaColors.onSurfaceVariant,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (rack.floorLabel != null && rack.floorLabel!.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        rack.floorLabel!,
+                        style: LuminaTextStyles.labelMd.copyWith(
+                          color: LuminaColors.onSurfaceVariant,
+                          letterSpacing: 0,
+                          fontSize: 11,
                         ),
                       ),
-                    ),
-                    const SizedBox(width: LuminaSpacing.xs),
-                    Text(
-                      rack.rackCode,
-                      style: LuminaTextStyles.labelMd.copyWith(
-                        color: LuminaColors.onSurfaceVariant,
-                        letterSpacing: 0,
+                    ],
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: ratio,
+                        minHeight: 6,
+                        backgroundColor: LuminaColors.surfaceContainer,
+                        valueColor: AlwaysStoppedAnimation<Color>(progressColor),
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          '${rack.totalBooks}/${rack.capacity} buku',
+                          style: LuminaTextStyles.labelMd.copyWith(
+                            color: LuminaColors.onSurfaceVariant,
+                            letterSpacing: 0,
+                            fontSize: 10,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${rack.freeSlots} slot kosong',
+                          style: LuminaTextStyles.labelMd.copyWith(
+                            color: LuminaColors.onSurfaceVariant,
+                            letterSpacing: 0,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                if (rack.floorLabel != null && rack.floorLabel!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    rack.floorLabel!,
-                    style: LuminaTextStyles.labelMd.copyWith(
-                      color: LuminaColors.onSurfaceVariant,
-                      letterSpacing: 0,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: ratio,
-                    minHeight: 6,
-                    backgroundColor: LuminaColors.surfaceContainer,
-                    valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Text(
-                      '${rack.totalBooks}/${rack.capacity} buku',
-                      style: LuminaTextStyles.labelMd.copyWith(
-                        color: LuminaColors.onSurfaceVariant,
-                        letterSpacing: 0,
-                        fontSize: 10,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${rack.freeSlots} slot kosong',
-                      style: LuminaTextStyles.labelMd.copyWith(
-                        color: LuminaColors.onSurfaceVariant,
-                        letterSpacing: 0,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
+              ),
+
+              if (onTap != null) ...[
+                const SizedBox(width: LuminaSpacing.xs),
+                const Icon(Icons.chevron_right_rounded, size: 16, color: LuminaColors.onSurfaceVariant),
               ],
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

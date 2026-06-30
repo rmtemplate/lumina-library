@@ -161,6 +161,8 @@ class LibraryMyBookCard extends StatelessWidget {
         return 'Segera Kembali';
       case LibraryMyBookStatus.overdue:
         return 'Terlambat';
+      case LibraryMyBookStatus.readyForReturn:
+        return 'Siap Dikembalikan';
       case LibraryMyBookStatus.finished:
         return 'Selesai';
       case LibraryMyBookStatus.waitingPayment:
@@ -183,6 +185,8 @@ class LibraryMyBookCard extends StatelessWidget {
         return 'Jatuh tempo dalam ${book.remainingDays} hari';
       case LibraryMyBookStatus.overdue:
         return '${book.overdueDays} hari terlambat';
+      case LibraryMyBookStatus.readyForReturn:
+        return 'Denda lunas · kembalikan buku';
       case LibraryMyBookStatus.finished:
         final returnedDate = book.returnedDateText;
         if (returnedDate == null || returnedDate.trim().isEmpty) {
@@ -212,6 +216,7 @@ class LibraryMyBookCard extends StatelessWidget {
         final progress = elapsedDays / maxLoanDays;
         return progress.clamp(0.08, 0.92);
       case LibraryMyBookStatus.overdue:
+      case LibraryMyBookStatus.readyForReturn:
       case LibraryMyBookStatus.finished:
       case LibraryMyBookStatus.waitingPayment:
       case LibraryMyBookStatus.expired:
@@ -232,6 +237,8 @@ class LibraryMyBookCard extends StatelessWidget {
         return '${(progress * 100).round()}% terpakai • segera kembalikan';
       case LibraryMyBookStatus.overdue:
         return 'Masa pinjam terlewati';
+      case LibraryMyBookStatus.readyForReturn:
+        return 'Siap dikembalikan';
       case LibraryMyBookStatus.finished:
         return 'Peminjaman selesai';
       case LibraryMyBookStatus.waitingPayment:
@@ -255,8 +262,10 @@ class LibraryMyBookCard extends StatelessWidget {
         return LuminaColors.primary;
       case LibraryMyBookStatus.overdue:
         return LuminaColors.error;
+      case LibraryMyBookStatus.readyForReturn:
+        return LuminaColors.secondary;
       case LibraryMyBookStatus.finished:
-        return LuminaColors.onSurfaceVariant;
+        return LuminaColors.secondary;
       case LibraryMyBookStatus.waitingPayment:
         return LuminaColors.error;
       case LibraryMyBookStatus.expired:
@@ -277,8 +286,10 @@ class LibraryMyBookCard extends StatelessWidget {
         return LuminaColors.primary.withOpacity(0.10);
       case LibraryMyBookStatus.overdue:
         return LuminaColors.errorContainer.withOpacity(0.58);
+      case LibraryMyBookStatus.readyForReturn:
+        return LuminaColors.secondary.withOpacity(0.12);
       case LibraryMyBookStatus.finished:
-        return LuminaColors.surfaceContainerHighest;
+        return LuminaColors.secondary.withOpacity(0.12);
       case LibraryMyBookStatus.waitingPayment:
         return LuminaColors.errorContainer.withOpacity(0.40);
       case LibraryMyBookStatus.expired:

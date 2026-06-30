@@ -304,7 +304,10 @@ class _LoanDetailBody extends StatelessWidget {
           _LoanBookInfoCard(book: book),
           const SizedBox(height: LuminaSpacing.lg),
           _LoanTimelineCard(book: book),
-          if (!mustPayFine) ...[
+          if (book.isFinished) ...[
+            const SizedBox(height: LuminaSpacing.lg),
+            _CompletedSummaryCard(book: book),
+          ] else if (!mustPayFine) ...[
             const SizedBox(height: LuminaSpacing.lg),
             _ReturnLocationCard(book: book, onRouteTap: onRouteTap),
           ],
@@ -504,7 +507,7 @@ class _LoanStatusChip extends StatelessWidget {
           const SizedBox(width: LuminaSpacing.xs),
           Expanded(
             child: Text(
-              book.statusLabel,
+              book.statusLabelId,
               style: LuminaTextStyles.labelMd.copyWith(
                 color: statusColor,
                 fontWeight: FontWeight.w900,
@@ -539,6 +542,8 @@ class _LoanStatusChip extends StatelessWidget {
         return Icons.schedule_rounded;
       case LibraryMyBookStatus.overdue:
         return Icons.warning_amber_rounded;
+      case LibraryMyBookStatus.readyForReturn:
+        return Icons.assignment_return_rounded;
       case LibraryMyBookStatus.finished:
         return Icons.assignment_turned_in_rounded;
       case LibraryMyBookStatus.waitingPayment:
@@ -562,8 +567,10 @@ class _LoanStatusChip extends StatelessWidget {
         return LuminaColors.primary;
       case LibraryMyBookStatus.overdue:
         return LuminaColors.error;
+      case LibraryMyBookStatus.readyForReturn:
+        return LuminaColors.secondary;
       case LibraryMyBookStatus.finished:
-        return LuminaColors.onSurfaceVariant;
+        return LuminaColors.secondary;
       case LibraryMyBookStatus.waitingPayment:
         return LuminaColors.error;
       case LibraryMyBookStatus.expired:
@@ -584,8 +591,10 @@ class _LoanStatusChip extends StatelessWidget {
         return LuminaColors.primaryFixed.withOpacity(0.38);
       case LibraryMyBookStatus.overdue:
         return LuminaColors.errorContainer.withOpacity(0.62);
+      case LibraryMyBookStatus.readyForReturn:
+        return LuminaColors.secondary.withOpacity(0.12);
       case LibraryMyBookStatus.finished:
-        return LuminaColors.surfaceContainerLow;
+        return LuminaColors.secondary.withOpacity(0.12);
       case LibraryMyBookStatus.waitingPayment:
         return LuminaColors.errorContainer.withOpacity(0.40);
       case LibraryMyBookStatus.expired:
@@ -1826,6 +1835,124 @@ class _SectionTitle extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _CompletedSummaryCard extends StatelessWidget {
+  const _CompletedSummaryCard({required this.book});
+
+  final LibraryMyBookItemModel book;
+
+  @override
+  Widget build(BuildContext context) {
+    final wasFinedAndPaid = book.rawStatus == 'returned_with_fine';
+
+    return Container(
+      padding: const EdgeInsets.all(LuminaSpacing.md),
+      decoration: BoxDecoration(
+        color: LuminaColors.secondary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+        border: Border.all(
+          color: LuminaColors.secondary.withOpacity(0.22),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: LuminaColors.secondary.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_rounded, color: LuminaColors.secondary, size: 20),
+              ),
+              const SizedBox(width: LuminaSpacing.sm),
+              Text(
+                'Borrowing Completed',
+                style: LuminaTextStyles.bodyMd.copyWith(
+                  color: LuminaColors.secondary,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: LuminaSpacing.md),
+          if (book.returnedDateText != null) _CompletedRow(
+            icon: Icons.event_available_rounded,
+            label: 'Return Date',
+            value: book.returnedDateText!,
+          ),
+          _CompletedRow(
+            icon: Icons.local_library_rounded,
+            label: 'Branch',
+            value: book.libraryName,
+          ),
+          if (wasFinedAndPaid) ...[
+            const SizedBox(height: LuminaSpacing.sm),
+            Row(
+              children: [
+                const Icon(Icons.receipt_long_rounded, color: LuminaColors.secondary, size: 16),
+                const SizedBox(width: LuminaSpacing.xs),
+                Text(
+                  'Fine Paid',
+                  style: LuminaTextStyles.labelMd.copyWith(
+                    color: LuminaColors.secondary,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CompletedRow extends StatelessWidget {
+  const _CompletedRow({required this.icon, required this.label, required this.value});
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: LuminaSpacing.sm),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: LuminaColors.outline),
+          const SizedBox(width: LuminaSpacing.xs),
+          Text(
+            '$label: ',
+            style: LuminaTextStyles.labelMd.copyWith(
+              color: LuminaColors.outline,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: LuminaTextStyles.labelMd.copyWith(
+                color: LuminaColors.onSurface,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

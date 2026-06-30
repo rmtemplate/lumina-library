@@ -67,7 +67,7 @@ class LibraryStaffDashboardPage extends StatelessWidget {
                   SliverToBoxAdapter(child: _SectionLabel(title: 'Statistik Hari Ini')),
                   const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.sm)),
                   SliverToBoxAdapter(
-                    child: StaffStatisticRow(items: c.stats),
+                    child: StaffStatisticRow(items: c.stats, onTap: c.handleStatTap),
                   ),
 
                   const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.md)),
@@ -77,7 +77,7 @@ class LibraryStaffDashboardPage extends StatelessWidget {
                     SliverToBoxAdapter(child: _SectionLabel(title: 'Analitik')),
                     const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.sm)),
                     SliverToBoxAdapter(
-                      child: StaffChartSection(charts: charts),
+                      child: StaffChartSection(charts: charts, onViewReport: c.handleChartTap),
                     ),
                     const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.md)),
                   ],
@@ -87,7 +87,7 @@ class LibraryStaffDashboardPage extends StatelessWidget {
                     SliverToBoxAdapter(child: _SectionLabel(title: 'Buku Populer')),
                     const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.sm)),
                     SliverToBoxAdapter(
-                      child: StaffPopularBooksSection(books: c.popularBooks),
+                      child: StaffPopularBooksSection(books: c.popularBooks, onTap: c.handleBookTap),
                     ),
                     const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.md)),
                   ],
@@ -97,7 +97,7 @@ class LibraryStaffDashboardPage extends StatelessWidget {
                     SliverToBoxAdapter(child: _SectionLabel(title: 'Ikhtisar Rak')),
                     const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.sm)),
                     SliverToBoxAdapter(
-                      child: StaffRackOverviewSection(racks: c.rackOverview),
+                      child: StaffRackOverviewSection(racks: c.rackOverview, onTap: c.handleRackTap),
                     ),
                     const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.md)),
                   ],
@@ -128,7 +128,7 @@ class LibraryStaffDashboardPage extends StatelessWidget {
                   ),
                   const SliverToBoxAdapter(child: SizedBox(height: LuminaSpacing.sm)),
                   SliverToBoxAdapter(
-                    child: StaffRecentActivitySection(activities: c.richActivities),
+                    child: StaffRecentActivitySection(activities: c.richActivities, onTap: c.handleActivityTap),
                   ),
 
                   // ── Bottom padding (nav bar safe area) ────────────────
