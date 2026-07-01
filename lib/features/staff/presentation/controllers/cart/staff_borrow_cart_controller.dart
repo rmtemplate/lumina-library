@@ -18,15 +18,17 @@ class StaffBorrowCartController extends GetxController {
   /// Adds a scanned/searched book item, de-duplicating by id and warning
   /// (rather than silently ignoring) if it's already in the cart — the
   /// staff scanned/picked the same physical copy twice, which usually
-  /// means they didn't notice it already got added.
-  void addItem(StaffBookItemModel item) {
+  /// means they didn't notice it already got added. Returns `true` if the
+  /// item was newly added, `false` if it was a duplicate.
+  bool addItem(StaffBookItemModel item) {
     if (items.any((existing) => existing.id == item.id)) {
       LuminaToast.warning('${item.bookTitle} sudah ada di keranjang.');
-      return;
+      return false;
     }
 
     items.add(item);
     LuminaToast.success('${item.bookTitle} ditambahkan ke keranjang.');
+    return true;
   }
 
   void removeItem(String itemId) {

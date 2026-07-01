@@ -98,6 +98,17 @@ class LibraryMyBooksController extends GetxController {
           // The open payment page (if any) reacts to these itself with
           // full detail — here we only need the list to stay in sync.
           unawaited(refresh());
+        case 'return.pending_verification':
+          // Staff scanned the Return QR — loan now awaits verification.
+          unawaited(refresh());
+        case 'return.verified':
+          // Staff finished verifying; list reflects waiting_payment/returned.
+          unawaited(refresh());
+        case 'borrowing.updated':
+          // Unified two-stage return event — keep the list in sync and notify
+          // when the student is NOT on the borrow detail page.
+          unawaited(refresh());
+          _notifyBorrowingUpdated(event);
         case 'return.success':
           unawaited(refresh());
           LuminaToast.success('Pengembalian buku berhasil diproses.');
@@ -110,6 +121,19 @@ class LibraryMyBooksController extends GetxController {
           LuminaToast.success('Peminjaman baru berhasil diproses oleh staff.');
       }
     });
+  }
+
+  /// Concise notification for the unified two-stage return event, for when the
+  /// student is browsing the list rather than the borrow detail page.
+  void _notifyBorrowingUpdated(WebSocketEvent event) {
+    switch (event.data['action'] as String?) {
+      case 'overdue_payment_created':
+        LuminaToast.warning('Ada denda keterlambatan yang perlu dibayar.');
+      case 'damage_payment_created':
+        LuminaToast.warning('Ada biaya kerusakan yang perlu dibayar.');
+      case 'borrowing_completed':
+        LuminaToast.success('Peminjaman selesai. Terima kasih!');
+    }
   }
 
   LibraryMyBookItemModel? _findByBorrowingId(String? borrowingId) {

@@ -178,8 +178,13 @@ class _StaffMemberStepPageState extends State<StaffMemberStepPage> {
                 TextField(
                   controller: _searchController,
                   onChanged: _search,
+                  style: LuminaTextStyles.bodyMd.copyWith(
+                    color: LuminaColors.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
                   decoration: InputDecoration(
                     hintText: 'Search member by name, email, phone, or NIM',
+                    hintStyle: LuminaTextStyles.bodyMd.copyWith(color: LuminaColors.outline),
                     prefixIcon: const Icon(Icons.search_rounded),
                     filled: true,
                     fillColor: LuminaColors.surfaceContainerLow,
@@ -201,8 +206,12 @@ class _StaffMemberStepPageState extends State<StaffMemberStepPage> {
                                 backgroundImage: member.avatarUrl != null ? NetworkImage(member.avatarUrl!) : null,
                                 child: member.avatarUrl == null ? const Icon(Icons.person_rounded, color: LuminaColors.primary) : null,
                               ),
-                              title: Text(member.fullname),
-                              subtitle: Text(member.memberCode ?? member.email),
+                              title: Text(member.fullname,
+                                  style: LuminaTextStyles.bodyMd.copyWith(
+                                      color: LuminaColors.onSurface, fontWeight: FontWeight.w700)),
+                              subtitle: Text(member.memberCode ?? member.email,
+                                  style: LuminaTextStyles.labelMd.copyWith(
+                                      color: LuminaColors.onSurfaceVariant, letterSpacing: 0)),
                               onTap: _isConfirming ? null : () => _confirmBorrowing(member),
                             );
                           },

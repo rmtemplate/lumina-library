@@ -215,9 +215,14 @@ class _Field extends StatelessWidget {
       controller: controller,
       keyboardType: keyboardType,
       maxLines: maxLines,
+      style: LuminaTextStyles.bodyMd.copyWith(
+        color: LuminaColors.onSurface,
+        fontWeight: FontWeight.w600,
+      ),
       validator: required ? (v) => (v == null || v.trim().isEmpty) ? '$label wajib diisi.' : null : null,
       decoration: InputDecoration(
         labelText: label,
+        labelStyle: LuminaTextStyles.bodyMd.copyWith(color: LuminaColors.onSurfaceVariant),
         filled: true,
         fillColor: LuminaColors.surfaceContainerLowest,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(LuminaRadius.md), borderSide: BorderSide(color: LuminaColors.outlineVariant)),

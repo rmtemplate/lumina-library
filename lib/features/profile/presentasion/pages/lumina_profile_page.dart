@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:lumina_library/core/services/lumina_storage_service.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/widgets/profile/student_qr_dialog.dart';
 import 'package:lumina_library/shared/controllers/lumina_profile_controller.dart';
 
 import '../../../../core/theme/lumina_colors.dart';
@@ -126,6 +128,27 @@ class LuminaProfilePage extends StatelessWidget {
                           _ProfileErrorBanner(onRetry: profileController.refreshProfile),
                           const SizedBox(height: LuminaSpacing.md),
                         ],
+                        // Student borrow QR — staff scan this to identify the
+                        // member on the counter borrow flow. Icon-only trigger.
+                        // Encode the REAL authenticated user id from storage
+                        // (same id the websocket uses) — NOT profile.memberCode,
+                        // which can still hold the dummy fallback when the API
+                        // omits member_code, resolving to the wrong member.
+                        if (!profile.isStaff)
+                          Builder(builder: (_) {
+                            final storedUser = LuminaStorageService.getUser();
+                            final realId = (storedUser?['id'] as String?) ?? '';
+                            final realCode = storedUser?['member_code'] as String?;
+                            if (realId.isEmpty) return const SizedBox.shrink();
+                            return Align(
+                              alignment: Alignment.centerRight,
+                              child: _StudentQrButton(
+                                code: realId,
+                                name: profile.fullname,
+                                subtitle: (realCode?.isNotEmpty ?? false) ? realCode : null,
+                              ),
+                            );
+                          }),
                         LuminaProfileHeaderCard(
                           profile: profile,
                           subtitle: profileController.profileSubtitle,
@@ -225,6 +248,46 @@ class _ProfileErrorBanner extends StatelessWidget {
             child: const Text('Coba Lagi'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Icon-only trigger that opens the full-brightness student borrow QR.
+class _StudentQrButton extends StatelessWidget {
+  const _StudentQrButton({
+    required this.code,
+    required this.name,
+    this.subtitle,
+  });
+
+  final String code;
+  final String name;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    if (code.trim().isEmpty) return const SizedBox.shrink();
+
+    return Tooltip(
+      message: 'Tampilkan QR peminjaman',
+      child: Material(
+        color: LuminaColors.primary.withOpacity(0.08),
+        shape: const CircleBorder(),
+        child: InkWell(
+          onTap: () => StudentQrDialog.show(
+            context,
+            code: code,
+            name: name,
+            subtitle: subtitle,
+          ),
+          customBorder: const CircleBorder(),
+          child: const SizedBox(
+            width: 44,
+            height: 44,
+            child: Icon(Icons.qr_code_2_rounded, color: LuminaColors.primary, size: 26),
+          ),
+        ),
       ),
     );
   }

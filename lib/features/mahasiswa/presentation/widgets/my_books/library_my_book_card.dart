@@ -163,6 +163,8 @@ class LibraryMyBookCard extends StatelessWidget {
         return 'Terlambat';
       case LibraryMyBookStatus.readyForReturn:
         return 'Siap Dikembalikan';
+      case LibraryMyBookStatus.returnPendingVerification:
+        return 'Verifikasi';
       case LibraryMyBookStatus.finished:
         return 'Selesai';
       case LibraryMyBookStatus.waitingPayment:
@@ -187,6 +189,8 @@ class LibraryMyBookCard extends StatelessWidget {
         return '${book.overdueDays} hari terlambat';
       case LibraryMyBookStatus.readyForReturn:
         return 'Denda lunas · kembalikan buku';
+      case LibraryMyBookStatus.returnPendingVerification:
+        return 'Petugas sedang memverifikasi buku';
       case LibraryMyBookStatus.finished:
         final returnedDate = book.returnedDateText;
         if (returnedDate == null || returnedDate.trim().isEmpty) {
@@ -217,6 +221,7 @@ class LibraryMyBookCard extends StatelessWidget {
         return progress.clamp(0.08, 0.92);
       case LibraryMyBookStatus.overdue:
       case LibraryMyBookStatus.readyForReturn:
+      case LibraryMyBookStatus.returnPendingVerification:
       case LibraryMyBookStatus.finished:
       case LibraryMyBookStatus.waitingPayment:
       case LibraryMyBookStatus.expired:
@@ -239,6 +244,8 @@ class LibraryMyBookCard extends StatelessWidget {
         return 'Masa pinjam terlewati';
       case LibraryMyBookStatus.readyForReturn:
         return 'Siap dikembalikan';
+      case LibraryMyBookStatus.returnPendingVerification:
+        return 'Menunggu verifikasi petugas';
       case LibraryMyBookStatus.finished:
         return 'Peminjaman selesai';
       case LibraryMyBookStatus.waitingPayment:
@@ -264,6 +271,8 @@ class LibraryMyBookCard extends StatelessWidget {
         return LuminaColors.error;
       case LibraryMyBookStatus.readyForReturn:
         return LuminaColors.secondary;
+      case LibraryMyBookStatus.returnPendingVerification:
+        return LuminaColors.primary;
       case LibraryMyBookStatus.finished:
         return LuminaColors.secondary;
       case LibraryMyBookStatus.waitingPayment:
@@ -288,6 +297,8 @@ class LibraryMyBookCard extends StatelessWidget {
         return LuminaColors.errorContainer.withOpacity(0.58);
       case LibraryMyBookStatus.readyForReturn:
         return LuminaColors.secondary.withOpacity(0.12);
+      case LibraryMyBookStatus.returnPendingVerification:
+        return LuminaColors.primary.withOpacity(0.10);
       case LibraryMyBookStatus.finished:
         return LuminaColors.secondary.withOpacity(0.12);
       case LibraryMyBookStatus.waitingPayment:

@@ -46,6 +46,7 @@ class StaffApiService {
     required String qrCode,
     required String borrowingId,
     required List<Map<String, dynamic>> items,
+    List<Map<String, dynamic>>? manualCharges,
     String? staffNotes,
   }) async {
     final response = await _client.post<Map<String, dynamic>>(
@@ -54,6 +55,7 @@ class StaffApiService {
         'qr_code': qrCode,
         'borrowing_id': borrowingId,
         'items': items,
+        if (manualCharges != null && manualCharges.isNotEmpty) 'manual_charges': manualCharges,
         if (staffNotes != null) 'staff_notes': staffNotes,
       },
       fromData: (data) => data as Map<String, dynamic>,

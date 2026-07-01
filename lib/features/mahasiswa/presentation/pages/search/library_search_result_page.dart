@@ -5,11 +5,21 @@ import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/search/library_search_controller.dart';
-import 'package:lumina_library/features/mahasiswa/presentation/widgets/catalog/library_trending_book_card.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/catalog/library_book_detail_page.dart';
-import 'package:lumina_library/shared/models/search/library_search_book_model.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/widgets/catalog/library_trending_book_card.dart';
+import 'package:lumina_library/shared/models/book/book_model.dart';
 
+/// Backend-driven search results: keyword + optional branch scope, availability
+/// filter, sorting, and infinite scroll — all served by the same catalog/branch
+/// endpoints. No client-side filtering.
+///
+/// Refactor note:
+/// - Obx dihapus dari page ini.
+/// - Semua rebuild memakai GetBuilder karena controller sudah memanggil update().
+/// - Ini menghindari error:
+///   "[Get] the improper use of a GetX has been detected".
 class LibrarySearchResultPage extends StatefulWidget {
   const LibrarySearchResultPage({
     super.key,
@@ -32,6 +42,7 @@ class LibrarySearchResultPage extends StatefulWidget {
 class _LibrarySearchResultPageState extends State<LibrarySearchResultPage> {
   late final TextEditingController _textController;
   late final FocusNode _focusNode;
+  late final ScrollController _scrollController;
 
   final LibrarySearchController controller =
       Get.isRegistered<LibrarySearchController>()
@@ -44,50 +55,86 @@ class _LibrarySearchResultPageState extends State<LibrarySearchResultPage> {
   bool get _isScopedSearch {
     return widget.searchInCurrentLibrary &&
         widget.libraryId != null &&
-        widget.libraryId!.trim().isNotEmpty &&
-        widget.libraryName != null &&
-        widget.libraryName!.trim().isNotEmpty;
+        widget.libraryId!.trim().isNotEmpty;
+  }
+
+  String? get _scopeBranchId {
+    return _isScopedSearch ? widget.libraryId : null;
   }
 
   @override
   void initState() {
     super.initState();
 
-    _textController = TextEditingController(
-      text: widget.initialKeyword,
-    );
-
+    _textController = TextEditingController(text: widget.initialKeyword);
     _focusNode = FocusNode();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      controller.setKeyword(widget.initialKeyword);
-      controller.addRecentSearch(widget.initialKeyword);
+      if (!mounted) return;
+
+      final keyword = widget.initialKeyword.trim();
+      if (keyword.isEmpty) return;
+
+      controller.setKeyword(keyword);
+      controller.addRecentSearch(keyword);
+      controller.runSearch(
+        keyword,
+        branchId: _scopeBranchId,
+      );
     });
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _textController.dispose();
     _focusNode.dispose();
     super.dispose();
   }
 
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+
+    final position = _scrollController.position;
+    final max = position.maxScrollExtent;
+
+    if (max <= 0) return;
+
+    if (position.pixels >= max * 0.8) {
+      controller.loadMore();
+    }
+  }
+
   void _runSearch(String value) {
     final keyword = value.trim();
-
     if (keyword.isEmpty) return;
 
     controller.setKeyword(keyword);
     controller.addRecentSearch(keyword);
+    controller.runSearch(
+      keyword,
+      branchId: _scopeBranchId,
+    );
 
-    _textController.text = keyword;
     _textController.selection = TextSelection.collapsed(
       offset: _textController.text.length,
     );
   }
 
-  void _goToBookDetail(LibrarySearchBook book) {
+  void _openBook(BookModel book) {
     controller.addRecentSearch(book.title);
+
+    final ctrl = Get.isRegistered<LibraryBookDetailController>()
+        ? Get.find<LibraryBookDetailController>()
+        : Get.put(
+            LibraryBookDetailController(),
+            permanent: true,
+          );
+
+    ctrl.openBook(book);
 
     Get.to(
       () => const LibraryBookDetailPage(),
@@ -95,38 +142,10 @@ class _LibrarySearchResultPageState extends State<LibrarySearchResultPage> {
     );
   }
 
-  List<LibrarySearchBook> _getGlobalRelevantBooks(String keyword) {
-    final cleanKeyword = keyword.trim().toLowerCase();
-
-    if (cleanKeyword.isEmpty) {
-      return controller.trendingBooks.take(4).toList(growable: false);
-    }
-
-    final keywordParts = cleanKeyword
-        .split(RegExp(r'\s+'))
-        .where((item) => item.trim().isNotEmpty)
-        .toList(growable: false);
-
-    final relevantBooks = controller.trendingBooks.where((book) {
-      final title = book.title.toLowerCase();
-      final author = book.author.toLowerCase();
-
-      return keywordParts.any((part) {
-        return title.contains(part) || author.contains(part);
-      });
-    }).toList(growable: false);
-
-    if (relevantBooks.isNotEmpty) {
-      return relevantBooks;
-    }
-
-    return controller.trendingBooks.take(4).toList(growable: false);
-  }
-
   @override
   Widget build(BuildContext context) {
     final hintText = _isScopedSearch
-        ? 'Cari lagi di ${widget.libraryName}...'
+        ? 'Cari lagi di ${widget.libraryName ?? 'cabang ini'}...'
         : 'Cari lagi di semua perpustakaan...';
 
     return Scaffold(
@@ -140,58 +159,334 @@ class _LibrarySearchResultPageState extends State<LibrarySearchResultPage> {
             onChanged: controller.setKeyword,
             onSubmitted: _runSearch,
           ),
+          _FilterBar(controller: controller),
           Expanded(
-            child: Obx(() {
-              final keyword = controller.keyword.value.trim();
-
-              final results = controller.getSearchResults(
-                keyword,
-                libraryId: _isScopedSearch ? widget.libraryId : null,
-              );
-
-              final relevantBooks = _isScopedSearch
-                  ? <LibrarySearchBook>[]
-                  : _getGlobalRelevantBooks(keyword);
-
-              return ListView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(
-                  LuminaSpacing.marginMobile,
-                  LuminaSpacing.lg,
-                  LuminaSpacing.marginMobile,
-                  LuminaSpacing.xl,
-                ),
-                children: [
-                  _ResultHeader(
-                    keyword: keyword,
-                    total: results.length,
-                    isScopedSearch: _isScopedSearch,
-                    libraryName: widget.libraryName,
-                  ),
-
-                  const SizedBox(height: LuminaSpacing.md),
-
-                  if (results.isEmpty)
-                    _ResultFallbackSection(
-                      keyword: keyword,
-                      isScopedSearch: _isScopedSearch,
-                      libraryName: widget.libraryName,
-                      relevantBooks: relevantBooks,
-                      onBookTap: _goToBookDetail,
-                    )
-                  else
-                    _SearchResultGrid(
-                      books: results,
-                      isScopedSearch: _isScopedSearch,
-                      onBookTap: _goToBookDetail,
+            child: GetBuilder<LibrarySearchController>(
+              init: controller,
+              autoRemove: false,
+              builder: (controller) {
+                if (controller.isSearching.value) {
+                  return const Center(
+                    child: CircularProgressIndicator(
+                      color: LuminaColors.secondary,
                     ),
-                ],
-              );
-            }),
+                  );
+                }
+
+                final errorMessage = controller.searchError.value.trim();
+                if (errorMessage.isNotEmpty) {
+                  return _ResultMessageState(
+                    icon: Icons.cloud_off_rounded,
+                    title: 'Gagal memuat hasil',
+                    description: errorMessage,
+                  );
+                }
+
+                final results = controller.results.toList(growable: false);
+                final keyword = controller.keyword.value.trim();
+
+                if (results.isEmpty) {
+                  return _ResultMessageState(
+                    icon: Icons.search_off_rounded,
+                    title: keyword.isEmpty
+                        ? 'Belum ada hasil pencarian'
+                        : 'Belum ada hasil untuk "$keyword"',
+                    description: _isScopedSearch
+                        ? 'Buku ini belum tersedia di ${widget.libraryName ?? 'cabang ini'}. Coba kata kunci lain atau cari di semua perpustakaan.'
+                        : 'Coba kata kunci lain atau ubah filter.',
+                  );
+                }
+
+                return CustomScrollView(
+                  controller: _scrollController,
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(
+                        LuminaSpacing.marginMobile,
+                        LuminaSpacing.md,
+                        LuminaSpacing.marginMobile,
+                        LuminaSpacing.sm,
+                      ),
+                      sliver: SliverToBoxAdapter(
+                        child: _ResultHeader(
+                          keyword: keyword,
+                          loaded: results.length,
+                          hasMore: controller.hasMore.value,
+                          isScopedSearch: _isScopedSearch,
+                          libraryName: widget.libraryName,
+                        ),
+                      ),
+                    ),
+
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: LuminaSpacing.marginMobile,
+                      ),
+                      sliver: SliverToBoxAdapter(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final availableWidth = constraints.maxWidth;
+                            const spacing = LuminaSpacing.md;
+                            const minCardWidth = 162.0;
+                            const maxColumnCount = 3;
+
+                            final calculatedColumnCount =
+                                ((availableWidth + spacing) / (minCardWidth + spacing))
+                                    .floor();
+
+                            final columnCount = calculatedColumnCount.clamp(
+                              1,
+                              maxColumnCount,
+                            );
+
+                            final cardWidth =
+                                (availableWidth - ((columnCount - 1) * spacing)) /
+                                    columnCount;
+
+                            return Wrap(
+                              spacing: spacing,
+                              runSpacing: spacing,
+                              children: List.generate(results.length, (index) {
+                                final book = results[index];
+
+                                return SizedBox(
+                                  width: cardWidth,
+                                  child: LibraryTrendingBookCard(
+                                    width: cardWidth,
+                                    title: book.title,
+                                    author: book.author,
+                                    rating: book.ratingLabel,
+                                    imageUrl: book.coverUrl ?? '',
+                                    isAvailable: book.isAvailable,
+                                    categoryLabel: book.category?.name,
+                                    libraryLocation: book.locationLabel,
+                                    showRatingBadge: false,
+                                    showInlineRating: true,
+                                    showBorrowButton: false,
+                                    showAvailabilityStatus: true,
+                                    onTap: () => _openBook(book),
+                                  ),
+                                );
+                              }),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+
+                    SliverToBoxAdapter(
+                      child: _LoadMoreFooter(
+                        isLoadingMore: controller.isLoadingMore.value,
+                        hasMore: controller.hasMore.value,
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ),
     );
+  }
+}
+
+/// Availability + sort controls.
+/// Refactor:
+/// - Tidak memakai Obx.
+/// - Rebuild lewat GetBuilder karena controller.applyStatus/applySort
+///   akan memanggil runSearch(), dan runSearch() memanggil update().
+class _FilterBar extends StatelessWidget {
+  const _FilterBar({
+    required this.controller,
+  });
+
+  final LibrarySearchController controller;
+
+  static const _sorts = [
+    ('trending', 'Terpopuler'),
+    ('rating', 'Rating'),
+    ('newest', 'Terbaru'),
+    ('title', 'Judul'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return GetBuilder<LibrarySearchController>(
+      init: controller,
+      autoRemove: false,
+      builder: (controller) {
+        return Container(
+          color: LuminaColors.surface,
+          padding: const EdgeInsets.fromLTRB(
+            LuminaSpacing.marginMobile,
+            0,
+            LuminaSpacing.marginMobile,
+            LuminaSpacing.sm,
+          ),
+          child: Row(
+            children: [
+              _FilterChip(
+                label: 'Tersedia',
+                selected: controller.activeStatus == 'available',
+                onTap: () {
+                  controller.applyStatus(
+                    controller.activeStatus == 'available'
+                        ? null
+                        : 'available',
+                  );
+                },
+              ),
+              const SizedBox(width: LuminaSpacing.sm),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: DropdownButton<String>(
+                    value: controller.activeSort,
+                    isDense: true,
+                    underline: const SizedBox.shrink(),
+                    icon: const Icon(
+                      Icons.sort_rounded,
+                      size: 18,
+                    ),
+                    borderRadius: BorderRadius.circular(LuminaRadius.md),
+                    style: LuminaTextStyles.labelMd.copyWith(
+                      color: LuminaColors.primary,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0,
+                    ),
+                    items: _sorts.map((sort) {
+                      return DropdownMenuItem<String>(
+                        value: sort.$1,
+                        child: Text(sort.$2),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      controller.applySort(value);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected
+        ? LuminaColors.secondary
+        : LuminaColors.onSurfaceVariant;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(LuminaRadius.full),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: LuminaSpacing.md,
+          vertical: 6,
+        ),
+        decoration: BoxDecoration(
+          color: selected
+              ? LuminaColors.secondary.withOpacity(0.10)
+              : LuminaColors.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(LuminaRadius.full),
+          border: Border.all(
+            color: selected
+                ? LuminaColors.secondary.withOpacity(0.28)
+                : LuminaColors.outlineVariant,
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.check_circle_outline_rounded,
+              size: 15,
+              color: color,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: LuminaTextStyles.labelMd.copyWith(
+                color: color,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadMoreFooter extends StatelessWidget {
+  const _LoadMoreFooter({
+    required this.isLoadingMore,
+    required this.hasMore,
+  });
+
+  final bool isLoadingMore;
+  final bool hasMore;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(
+          vertical: LuminaSpacing.lg,
+        ),
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              color: LuminaColors.secondary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (!hasMore) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+          vertical: LuminaSpacing.lg,
+        ),
+        child: Center(
+          child: Text(
+            'Semua hasil sudah ditampilkan',
+            style: LuminaTextStyles.labelMd.copyWith(
+              color: LuminaColors.outline,
+              letterSpacing: 0,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return const SizedBox(height: LuminaSpacing.xl);
   }
 }
 
@@ -242,9 +537,7 @@ class _SearchResultTopBar extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(width: LuminaSpacing.xs),
-
               Expanded(
                 child: Container(
                   height: 46,
@@ -296,23 +589,25 @@ class _SearchResultTopBar extends StatelessWidget {
 class _ResultHeader extends StatelessWidget {
   const _ResultHeader({
     required this.keyword,
-    required this.total,
+    required this.loaded,
+    required this.hasMore,
     required this.isScopedSearch,
     this.libraryName,
   });
 
   final String keyword;
-  final int total;
+  final int loaded;
+  final bool hasMore;
   final bool isScopedSearch;
   final String? libraryName;
 
   @override
   Widget build(BuildContext context) {
     final title = keyword.isEmpty
-        ? 'Search Result'
+        ? 'Hasil Pencarian'
         : isScopedSearch
-            ? 'Search "$keyword" di ${libraryName ?? 'cabang ini'}'
-            : 'Search "$keyword"';
+            ? 'Hasil "$keyword" di ${libraryName ?? 'cabang ini'}'
+            : 'Hasil "$keyword"';
 
     return Row(
       children: [
@@ -327,7 +622,6 @@ class _ResultHeader extends StatelessWidget {
             ),
           ),
         ),
-
         Container(
           padding: const EdgeInsets.symmetric(
             horizontal: LuminaSpacing.sm,
@@ -342,7 +636,7 @@ class _ResultHeader extends StatelessWidget {
             ),
           ),
           child: Text(
-            '$total Result',
+            hasMore ? '$loaded+' : '$loaded hasil',
             style: LuminaTextStyles.labelMd.copyWith(
               color: LuminaColors.onSurfaceVariant,
               fontWeight: FontWeight.w800,
@@ -355,173 +649,8 @@ class _ResultHeader extends StatelessWidget {
   }
 }
 
-class _SearchResultGrid extends StatelessWidget {
-  const _SearchResultGrid({
-    required this.books,
-    required this.isScopedSearch,
-    required this.onBookTap,
-  });
-
-  final List<LibrarySearchBook> books;
-  final bool isScopedSearch;
-  final ValueChanged<LibrarySearchBook> onBookTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const spacing = LuminaSpacing.md;
-        final crossAxisCount = constraints.maxWidth >= 680 ? 3 : 2;
-        final cardWidth =
-            (constraints.maxWidth - ((crossAxisCount - 1) * spacing)) /
-                crossAxisCount;
-
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: books.map((book) {
-            return Stack(
-              clipBehavior: Clip.none,
-              children: [
-                LibraryTrendingBookCard(
-                  width: cardWidth,
-                  title: book.title,
-                  author: book.author,
-                  rating: book.rating,
-                  imageUrl: book.imageUrl,
-                  isAvailable: book.isAvailable,
-                  showRatingBadge: false,
-                  showInlineRating: true,
-                  showBorrowButton: false,
-                  showAvailabilityStatus: true,
-                  availableStatusLabel:
-                      isScopedSearch ? 'Ada di cabang ini' : 'Available',
-                  unavailableStatusLabel: isScopedSearch
-                      ? 'Tidak tersedia di cabang ini'
-                      : 'Borrowed',
-                  onTap: () => onBookTap(book),
-                ),
-
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: _ScopeMiniBadge(
-                    isScopedSearch: isScopedSearch,
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
-        );
-      },
-    );
-  }
-}
-
-class _ScopeMiniBadge extends StatelessWidget {
-  const _ScopeMiniBadge({
-    required this.isScopedSearch,
-  });
-
-  final bool isScopedSearch;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isScopedSearch ? LuminaColors.secondary : LuminaColors.primary;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 7,
-        vertical: 4,
-      ),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.94),
-        borderRadius: BorderRadius.circular(LuminaRadius.full),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isScopedSearch ? Icons.local_library_rounded : Icons.public_rounded,
-            color: Colors.white,
-            size: 12,
-          ),
-          const SizedBox(width: 3),
-          Text(
-            isScopedSearch ? 'Cabang' : 'Global',
-            style: LuminaTextStyles.labelMd.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 10,
-              letterSpacing: 0,
-              height: 1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ResultFallbackSection extends StatelessWidget {
-  const _ResultFallbackSection({
-    required this.keyword,
-    required this.isScopedSearch,
-    required this.relevantBooks,
-    required this.onBookTap,
-    this.libraryName,
-  });
-
-  final String keyword;
-  final bool isScopedSearch;
-  final String? libraryName;
-  final List<LibrarySearchBook> relevantBooks;
-  final ValueChanged<LibrarySearchBook> onBookTap;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isScopedSearch) {
-      return _ResultEmptyState(
-        icon: Icons.local_library_outlined,
-        title: 'Belum ada hasil di ${libraryName ?? 'cabang ini'}',
-        description:
-            'Buku "$keyword" belum tersedia di perpustakaan ini. Coba kata kunci lain atau cari di semua perpustakaan.',
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _ResultEmptyState(
-          icon: Icons.search_off_rounded,
-          title: 'Belum ada hasil untuk "$keyword"',
-          description:
-              'Kami belum menemukan hasil yang cocok. Berikut beberapa buku yang mungkin masih relevan untuk Anda.',
-        ),
-
-        if (relevantBooks.isNotEmpty) ...[
-          const SizedBox(height: LuminaSpacing.xl),
-          Text(
-            'Mungkin Relevan',
-            style: LuminaTextStyles.headlineSm.copyWith(
-              color: LuminaColors.primary,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: LuminaSpacing.md),
-          _SearchResultGrid(
-            books: relevantBooks,
-            isScopedSearch: false,
-            onBookTap: onBookTap,
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _ResultEmptyState extends StatelessWidget {
-  const _ResultEmptyState({
+class _ResultMessageState extends StatelessWidget {
+  const _ResultMessageState({
     required this.icon,
     required this.title,
     required this.description,
@@ -533,51 +662,45 @@ class _ResultEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        vertical: LuminaSpacing.xl,
-        horizontal: LuminaSpacing.md,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 82,
-            height: 82,
-            decoration: BoxDecoration(
-              color: LuminaColors.surfaceContainerHighest.withOpacity(0.5),
-              shape: BoxShape.circle,
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(LuminaSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 82,
+              height: 82,
+              decoration: BoxDecoration(
+                color: LuminaColors.surfaceContainerHighest.withOpacity(0.5),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon,
+                size: 40,
+                color: LuminaColors.outline,
+              ),
             ),
-            child: Icon(
-              icon,
-              size: 40,
-              color: LuminaColors.outline,
+            const SizedBox(height: LuminaSpacing.lg),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: LuminaTextStyles.titleLg.copyWith(
+                color: LuminaColors.primary,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-
-          const SizedBox(height: LuminaSpacing.lg),
-
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: LuminaTextStyles.titleLg.copyWith(
-              color: LuminaColors.primary,
-              fontWeight: FontWeight.w800,
+            const SizedBox(height: LuminaSpacing.xs),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: LuminaTextStyles.bodyMd.copyWith(
+                color: LuminaColors.onSurfaceVariant,
+                height: 1.45,
+              ),
             ),
-          ),
-
-          const SizedBox(height: LuminaSpacing.xs),
-
-          Text(
-            description,
-            textAlign: TextAlign.center,
-            style: LuminaTextStyles.bodyMd.copyWith(
-              color: LuminaColors.onSurfaceVariant,
-              height: 1.45,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

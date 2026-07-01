@@ -5,6 +5,7 @@ enum LibraryMyBookStatus {
   dueSoon,         // akan jatuh tempo dalam beberapa hari
   overdue,         // melewati batas pengembalian
   readyForReturn,  // denda dilunasi, buku siap dikembalikan
+  returnPendingVerification, // petugas sudah scan Return QR, sedang verifikasi buku
   finished,        // sudah dikembalikan (completed)
   waitingPayment,  // menunggu pembayaran denda
   expired,         // reservasi kadaluwarsa
@@ -44,6 +45,17 @@ class LibraryMyBookItemModel {
     this.canPickup = false,
     this.reservationExpiresAt,
     this.itemsCount = 1,
+    // ── Backend-decided workflow + action flags (single source of truth) ──
+    this.canGenerateReturnQr = false,
+    this.canRefreshQr = false,
+    this.canPayOverdue = false,
+    this.canPayDamage = false,
+    this.canCancel = false,
+    this.canViewPaymentHistory = false,
+    this.workflowStep = '',
+    this.workflowNextAction = 'none',
+    this.workflowStepLabel = '',
+    this.workflowStepDescription = '',
   });
 
   final String loanId;
@@ -85,6 +97,25 @@ class LibraryMyBookItemModel {
   final String? reservationExpiresAt;
   final int itemsCount;
 
+  // Backend-decided action flags — the UI renders each button ONLY when its
+  // flag is true. The client never infers these from status/overdue/fine.
+  final bool canGenerateReturnQr;
+  final bool canRefreshQr;
+  final bool canPayOverdue;
+  final bool canPayDamage;
+  final bool canCancel;
+  final bool canViewPaymentHistory;
+
+  // Backend workflow (where the loan is in the return flow) — for labels.
+  final String workflowStep;
+  final String workflowNextAction;
+  final String workflowStepLabel;
+  final String workflowStepDescription;
+
+  /// True when EITHER separate payment stage is currently payable — the only
+  /// thing that should surface a payment button. Backend-driven, not inferred.
+  bool get canPay => canPayOverdue || canPayDamage;
+
   // ── Computed booleans ────────────────────────────────────────────────────
 
   bool get isActive => status == LibraryMyBookStatus.active;
@@ -97,6 +128,8 @@ class LibraryMyBookItemModel {
   bool get isExpired => status == LibraryMyBookStatus.expired;
   bool get isCancelled => status == LibraryMyBookStatus.cancelled;
   bool get isWaitingPayment => status == LibraryMyBookStatus.waitingPayment;
+  bool get isReturnPendingVerification =>
+      status == LibraryMyBookStatus.returnPendingVerification;
 
   bool get hasFine => fineAmount > 0;
 
@@ -138,6 +171,8 @@ class LibraryMyBookItemModel {
         return 'Overdue';
       case LibraryMyBookStatus.readyForReturn:
         return 'Ready to Return';
+      case LibraryMyBookStatus.returnPendingVerification:
+        return 'Verifying Return';
       case LibraryMyBookStatus.finished:
         return 'Completed';
       case LibraryMyBookStatus.waitingPayment:
@@ -163,6 +198,8 @@ class LibraryMyBookItemModel {
         return 'Terlambat';
       case LibraryMyBookStatus.readyForReturn:
         return 'Siap Dikembalikan';
+      case LibraryMyBookStatus.returnPendingVerification:
+        return 'Menunggu Verifikasi';
       case LibraryMyBookStatus.finished:
         return 'Selesai';
       case LibraryMyBookStatus.waitingPayment:
@@ -190,6 +227,8 @@ class LibraryMyBookItemModel {
         return 'Lewat jatuh tempo $overdueDays hari';
       case LibraryMyBookStatus.readyForReturn:
         return 'Denda lunas · kembalikan buku ke perpustakaan';
+      case LibraryMyBookStatus.returnPendingVerification:
+        return 'Petugas sedang memverifikasi buku Anda';
       case LibraryMyBookStatus.finished:
         return returnedDateText == null
             ? 'Sudah dikembalikan'
@@ -236,6 +275,7 @@ class LibraryMyBookItemModel {
     final branch = json['branch'] as Map<String, dynamic>? ?? {};
     final rawItems = json['items'] as List<dynamic>? ?? [];
     final actions = json['actions'] as Map<String, dynamic>? ?? {};
+    final workflow = json['workflow'] as Map<String, dynamic>? ?? {};
 
     // Ambil buku pertama dari items untuk representasi visual
     final firstItem = rawItems.isNotEmpty
@@ -284,6 +324,17 @@ class LibraryMyBookItemModel {
       canPickup: actions['can_pickup'] == true,
       reservationExpiresAt: json['reservation_expires_at']?.toString(),
       itemsCount: (json['items_count'] as num?)?.toInt() ?? rawItems.length,
+      // Backend-decided flags + workflow (single source of truth).
+      canGenerateReturnQr: actions['can_generate_return_qr'] == true,
+      canRefreshQr: actions['can_refresh_qr'] == true,
+      canPayOverdue: actions['can_pay_overdue'] == true,
+      canPayDamage: actions['can_pay_damage'] == true,
+      canCancel: actions['can_cancel'] == true,
+      canViewPaymentHistory: actions['can_view_payment_history'] == true,
+      workflowStep: (workflow['current_step'] as String?) ?? '',
+      workflowNextAction: (workflow['next_action'] as String?) ?? 'none',
+      workflowStepLabel: (workflow['step_label'] as String?) ?? '',
+      workflowStepDescription: (workflow['step_description'] as String?) ?? '',
     );
   }
 
@@ -299,6 +350,19 @@ class LibraryMyBookItemModel {
         return LibraryMyBookStatus.overdue;
       case 'ready_for_return':
         return LibraryMyBookStatus.readyForReturn;
+      // ── Two-stage return flow ────────────────────────────────────────────
+      // Books received & staff inspecting → "waiting for verification" UI.
+      case 'return_received':
+      case 'book_inspection':
+      case 'return_pending_verification':
+        return LibraryMyBookStatus.returnPendingVerification;
+      // Either separate payment stage outstanding → the payment UI. Only one
+      // type is ever outstanding at a time, so total_fine reflects the stage.
+      case 'waiting_overdue_payment':
+      case 'waiting_damage_payment':
+        return LibraryMyBookStatus.waitingPayment;
+      case 'completed':
+        return LibraryMyBookStatus.finished;
       case 'returned':
       case 'returned_with_fine':
         return LibraryMyBookStatus.finished;

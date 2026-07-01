@@ -1,17 +1,25 @@
 import 'package:get/get.dart';
 
-import 'package:lumina_library/shared/models/search/library_search_book_model.dart';
+import 'package:lumina_library/core/network/lumina_api_exception.dart';
+import 'package:lumina_library/features/mahasiswa/data/services/home_api_service.dart';
+import 'package:lumina_library/shared/models/book/book_model.dart';
 
+/// Backend-driven search. Results, pagination and infinite scroll all come from
+/// GET /books (global) or GET /public/branches/{id}/books (scoped) via
+/// [HomeApiService].
+///
+/// Refactor note:
+/// - Rx tetap dipertahankan agar aman jika ada page lain yang masih memakai Obx.
+/// - Untuk page search utama, gunakan GetBuilder agar tidak muncul error:
+///   "[Get] the improper use of a GetX has been detected".
+/// - Semua perubahan state memanggil update().
 class LibrarySearchController extends GetxController {
+  static const int _perPage = 15;
+
   final RxString keyword = ''.obs;
 
-  final RxList<String> recentSearches = <String>[
-    'Clean Code',
-    'Design Systems',
-    'Sapiens',
-  ].obs;
+  final RxList<String> recentSearches = <String>[].obs;
 
-  /// Nanti bisa diganti dari API trending search.
   final RxList<String> trendingKeywords = <String>[
     'Clean Architecture',
     'Design Systems',
@@ -23,188 +31,196 @@ class LibrarySearchController extends GetxController {
     'Artificial Intelligence',
   ].obs;
 
-  /// Nanti bisa diganti dari API last viewed.
-  final RxList<LibrarySearchBook> lastViewedBooks = <LibrarySearchBook>[
-    const LibrarySearchBook(
-      title: 'Thinking, Fast and Slow',
-      author: 'Daniel Kahneman',
-      rating: '4.8',
-      isAvailable: true,
-      libraryIds: [
-        'lib-journal',
-      ],
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCKFM0hqygsbsRpvlKPieR5QZ3wUJdUwrrBHNvQ1Xpl_v3ZyA2CmnI00VaWHwip_nSReK2A1rJCVl7vEvj_6GHlAQoJfDpPgTYJqnBXKHXfeIo_c1DzD7QiEgTpXf1ZPg8h8dNHYVz5tcnG1DXoK7rFK6crYXvhdhmP-hrqmjuHxC6QpDXSz83Cw4kbbm66191LxJ0-LCs-MsA7ku1zhR_2-LvjOu3JhVwrvQe_02XnkIyhOq8GzSZroYhnNcYXyffs4Yw7EA2DwGBg',
-    ),
-    const LibrarySearchBook(
-      title: 'Clean Code',
-      author: 'Robert C. Martin',
-      rating: '4.9',
-      isAvailable: false,
-      libraryIds: [
-        'lib-tech',
-      ],
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCO34Y508de6iKw_qzLC6_2khlv2bRyBx7h4XorhVHnkzkfFsZrBK2DSPcgTd44O7j5m5-RkYK8pzR8LEimeUNuEwz1stpZtQih_LSmdcghLYsPq2SQ9qjWWab5_2CnsV6Zqq3xuxpo2Oq24iCXn2k0i0lsSg-QZ6iYM_UMoNAFOsE5t6pdyclTmaKDagds72W3NKb4tDwSuaAiebME6HzI6wZi5Wjo71jnzKrk2tUmrhhNjaH8xS2LmGL6n-eW3WasselkmOJZo1N9',
-    ),
-  ].obs;
+  // Real trending books from backend.
+  final RxBool isTrendingLoading = false.obs;
+  final RxList<BookModel> trendingBooks = <BookModel>[].obs;
 
-  /// Nanti bisa diganti dari API trending books.
-  final RxList<LibrarySearchBook> trendingBooks = <LibrarySearchBook>[
-    const LibrarySearchBook(
-      title: 'Clean Architecture',
-      author: 'Robert C. Martin',
-      rating: '4.8',
-      isAvailable: true,
-      libraryIds: [
-        'lib-central',
-        'lib-tech',
-      ],
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuAuLblMAj5-Sc853TMVBkmebmIs-PlqkXA2dmSvr6np_PuAApRlgf0J9jxiwcJG-BsSUs9oKsn9ksyb3dfmzQtUydS6lc_1Emw_aOukz22O2jzIOC5ET0JGAZPFPxzTDSKEO6OxtFcm8Y1QzTh_5wPP2qQnP16DxscNnWv0X2BEi3lbQy24UysKZ_Nlcp3o9laV40glwhEHh3O_B_WOOlWdZaJyeJ0CcHF3IAk6jCbHn4pSCtzT110s7C5aIff8AVMeosutYK3qGFaj',
-    ),
-    const LibrarySearchBook(
-      title: 'The Design of Everyday Things',
-      author: 'Don Norman',
-      rating: '4.8',
-      isAvailable: true,
-      libraryIds: [
-        'lib-central',
-        'lib-tech',
-      ],
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuDFtPY08koMch_TVNgxI6NG7PM-FzVmki-eENqsbHPdiuTqJu53S19Rzzuewotosw7fpA0BOHSo8u7rp6esH0z9z5YDAxVCXI_bzCry3t2jfErzsR1AiXaPQXuNq7LbPqn66Y4Etk5eNNFqTyLivYkxyOLMgrY-vZHr9t0bgMIxjpV4YYwLIEArvxee0cMXce9RbIcVXWbU2212IwPLDheL0tnZ9PaKoLvCmeYiUVIvp8QyzcMe0klsbfG_WcUMaUflq3inhdk7qVmg',
-    ),
-    const LibrarySearchBook(
-      title: 'Sapiens',
-      author: 'Yuval Noah Harari',
-      rating: '4.7',
-      isAvailable: true,
-      libraryIds: [
-        'lib-central',
-        'lib-journal',
-      ],
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuDEqwKBnH8vr-PuYXSy-6DZAa4WouAOjyZyx_VITYRgXX4O-V6P91OszSCt6POwHB-N3EqTfV_FxrGpEBPDYWt7aQHuepWAppe-0kAkpYVcV4rW0Xo5oflqor5X0LsySQdvSBetLpMUj--CtpaPsIY0NWRunpbDxpAimtXprYZ9FpWPwVo8A5FkIq0Z2YnX9fno3vayr12fwde3Ls9uIsVOzW54MWruq8G3QgkgleR4gHF4sQFr27d0d-0GU-mILt1lXSU5qQDyErXJ',
-    ),
-  ].obs;
+  // Backend search results + pagination.
+  final RxBool isSearching = false.obs;
+  final RxBool isLoadingMore = false.obs;
+  final RxBool hasMore = true.obs;
+  final RxString searchError = ''.obs;
+  final RxList<BookModel> results = <BookModel>[].obs;
 
-  /// Dummy local data untuk search result.
-  ///
-  /// `libraryIds` wajib diisi agar search per perpustakaan bisa difilter.
-  /// Nanti kalau sudah API, field ini bisa berasal dari response:
-  /// - LibraryId
-  /// - BranchId
-  /// - AvailableLibraries
-  /// - StockByLibrary
-  final RxList<LibrarySearchBook> allBooks = <LibrarySearchBook>[
-    const LibrarySearchBook(
-      title: 'The Design of Everyday Things',
-      author: 'Don Norman',
-      rating: '4.8',
-      isAvailable: true,
-      libraryIds: [
-        'lib-central',
-        'lib-tech',
-      ],
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuDFtPY08koMch_TVNgxI6NG7PM-FzVmki-eENqsbHPdiuTqJu53S19Rzzuewotosw7fpA0BOHSo8u7rp6esH0z9z5YDAxVCXI_bzCry3t2jfErzsR1AiXaPQXuNq7LbPqn66Y4Etk5eNNFqTyLivYkxyOLMgrY-vZHr9t0bgMIxjpV4YYwLIEArvxee0cMXce9RbIcVXWbU2212IwPLDheL0tnZ9PaKoLvCmeYiUVIvp8QyzcMe0klsbfG_WcUMaUflq3inhdk7qVmg',
-    ),
-    const LibrarySearchBook(
-      title: 'Clean Code',
-      author: 'Robert C. Martin',
-      rating: '4.9',
-      isAvailable: false,
-      libraryIds: [
-        'lib-tech',
-      ],
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCO34Y508de6iKw_qzLC6_2khlv2bRyBx7h4XorhVHnkzkfFsZrBK2DSPcgTd44O7j5m5-RkYK8pzR8LEimeUNuEwz1stpZtQih_LSmdcghLYsPq2SQ9qjWWab5_2CnsV6Zqq3xuxpo2Oq24iCXn2k0i0lsSg-QZ6iYM_UMoNAFOsE5t6pdyclTmaKDagds72W3NKb4tDwSuaAiebME6HzI6wZi5Wjo71jnzKrk2tUmrhhNjaH8xS2LmGL6n-eW3WasselkmOJZo1N9',
-    ),
-    const LibrarySearchBook(
-      title: 'Sapiens',
-      author: 'Yuval Noah Harari',
-      rating: '4.7',
-      isAvailable: true,
-      libraryIds: [
-        'lib-central',
-        'lib-journal',
-      ],
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuDEqwKBnH8vr-PuYXSy-6DZAa4WouAOjyZyx_VITYRgXX4O-V6P91OszSCt6POwHB-N3EqTfV_FxrGpEBPDYWt7aQHuepWAppe-0kAkpYVcV4rW0Xo5oflqor5X0LsySQdvSBetLpMUj--CtpaPsIY0NWRunpbDxpAimtXprYZ9FpWPwVo8A5FkIq0Z2YnX9fno3vayr12fwde3Ls9uIsVOzW54MWruq8G3QgkgleR4gHF4sQFr27d0d-0GU-mILt1lXSU5qQDyErXJ',
-    ),
-    const LibrarySearchBook(
-      title: 'Thinking, Fast and Slow',
-      author: 'Daniel Kahneman',
-      rating: '4.8',
-      isAvailable: true,
-      libraryIds: [
-        'lib-journal',
-      ],
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCKFM0hqygsbsRpvlKPieR5QZ3wUJdUwrrBHNvQ1Xpl_v3ZyA2CmnI00VaWHwip_nSReK2A1rJCVl7vEvj_6GHlAQoJfDpPgTYJqnBXKHXfeIo_c1DzD7QiEgTpXf1ZPg8h8dNHYVz5tcnG1DXoK7rFK6crYXvhdhmP-hrqmjuHxC6QpDXSz83Cw4kbbm66191LxJ0-LCs-MsA7ku1zhR_2-LvjOu3JhVwrvQe_02XnkIyhOq8GzSZroYhnNcYXyffs4Yw7EA2DwGBg',
-    ),
-    const LibrarySearchBook(
-      title: 'Clean Architecture',
-      author: 'Robert C. Martin',
-      rating: '4.8',
-      isAvailable: true,
-      libraryIds: [
-        'lib-central',
-        'lib-tech',
-      ],
-      imageUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuAuLblMAj5-Sc853TMVBkmebmIs-PlqkXA2dmSvr6np_PuAApRlgf0J9jxiwcJG-BsSUs9oKsn9ksyb3dfmzQtUydS6lc_1Emw_aOukz22O2jzIOC5ET0JGAZPFPxzTDSKEO6OxtFcm8Y1QzTh_5wPP2qQnP16DxscNnWv0X2BEi3lbQy24UysKZ_Nlcp3o9laV40glwhEHh3O_B_WOOlWdZaJyeJ0CcHF3IAk6jCbHn4pSCtzT110s7C5aIff8AVMeosutYK3qGFaj',
-    ),
-  ].obs;
+  int _page = 1;
+  int _searchToken = 0;
+
+  String _activeKeyword = '';
+  String? _activeBranchId;
+  String? _activeStatus;
+  String _activeSort = 'trending';
+
+  HomeApiService get _service => Get.find<HomeApiService>();
+
+  @override
+  void onInit() {
+    super.onInit();
+    _loadTrending();
+  }
+
+  void _safeUpdate() {
+    if (!isClosed) {
+      update();
+    }
+  }
+
+  Future<void> _loadTrending() async {
+    isTrendingLoading.value = true;
+    _safeUpdate();
+
+    try {
+      final books = await _service.getTrendingBooks(limit: 10);
+      trendingBooks.assignAll(books);
+    } catch (_) {
+      // Silent. Section akan hide kalau list kosong.
+    } finally {
+      isTrendingLoading.value = false;
+      _safeUpdate();
+    }
+  }
 
   List<String> get filteredTrendingKeywords {
     final value = keyword.value.trim().toLowerCase();
+    final items = trendingKeywords.toList(growable: false);
 
     if (value.isEmpty) {
-      return trendingKeywords.take(8).toList(growable: false);
+      return items.take(8).toList(growable: false);
     }
 
-    return trendingKeywords.where((item) {
-      return item.toLowerCase().contains(value);
-    }).toList(growable: false);
-  }
-
-  List<LibrarySearchBook> getSearchResults(
-    String searchKeyword, {
-    String? libraryId,
-  }) {
-    final value = searchKeyword.trim().toLowerCase();
-    final selectedLibraryId = libraryId?.trim();
-
-    if (value.isEmpty) return const [];
-
-    return allBooks.where((book) {
-      final title = book.title.toLowerCase();
-      final author = book.author.toLowerCase();
-
-      final matchesKeyword = title.contains(value) || author.contains(value);
-
-      if (!matchesKeyword) return false;
-
-      // Global search: tampilkan semua buku yang match keyword.
-      if (selectedLibraryId == null || selectedLibraryId.isEmpty) {
-        return true;
-      }
-
-      // Search cabang/perpustakaan:
-      // hanya tampilkan buku yang memang ada di libraryId tersebut.
-      return book.isAvailableInLibrary(selectedLibraryId);
-    }).toList(growable: false);
+    return items
+        .where((item) => item.toLowerCase().contains(value))
+        .toList(growable: false);
   }
 
   void setKeyword(String value) {
+    if (keyword.value == value) return;
+
     keyword.value = value;
+    _safeUpdate();
+  }
+
+  Future<void> runSearch(
+    String kw, {
+    String? branchId,
+    String? status,
+    String sort = 'trending',
+  }) async {
+    final clean = kw.trim();
+    if (clean.isEmpty) return;
+
+    final token = ++_searchToken;
+
+    keyword.value = clean;
+    _activeKeyword = clean;
+    _activeBranchId = branchId;
+    _activeStatus = status;
+    _activeSort = sort;
+
+    _page = 1;
+    hasMore.value = true;
+    searchError.value = '';
+    isSearching.value = true;
+    isLoadingMore.value = false;
+    results.clear();
+
+    _safeUpdate();
+
+    try {
+      final result = await _fetchPage(1);
+
+      if (token != _searchToken) return;
+
+      results.assignAll(result.items);
+      hasMore.value = result.hasMorePages;
+    } on LuminaApiException catch (e) {
+      if (token != _searchToken) return;
+
+      searchError.value = e.displayMessage;
+      hasMore.value = false;
+    } catch (_) {
+      if (token != _searchToken) return;
+
+      searchError.value = 'Gagal memuat hasil pencarian.';
+      hasMore.value = false;
+    } finally {
+      if (token == _searchToken) {
+        isSearching.value = false;
+        _safeUpdate();
+      }
+    }
+  }
+
+  Future<void> loadMore() async {
+    if (!hasMore.value || isLoadingMore.value || isSearching.value) return;
+    if (_activeKeyword.trim().isEmpty) return;
+
+    final nextPage = _page + 1;
+
+    isLoadingMore.value = true;
+    _safeUpdate();
+
+    try {
+      final result = await _fetchPage(nextPage);
+
+      _page = nextPage;
+      results.addAll(result.items);
+      hasMore.value = result.hasMorePages;
+    } on LuminaApiException {
+      // Keep current page.
+    } catch (_) {
+      // Keep current page.
+    } finally {
+      isLoadingMore.value = false;
+      _safeUpdate();
+    }
+  }
+
+  Future<void> applyStatus(String? status) {
+    return runSearch(
+      _activeKeyword,
+      branchId: _activeBranchId,
+      status: status,
+      sort: _activeSort,
+    );
+  }
+
+  Future<void> applySort(String sort) {
+    return runSearch(
+      _activeKeyword,
+      branchId: _activeBranchId,
+      status: _activeStatus,
+      sort: sort,
+    );
+  }
+
+  String? get activeStatus => _activeStatus;
+  String get activeSort => _activeSort;
+
+  Future<({List<BookModel> items, bool hasMorePages})> _fetchPage(int page) {
+    final branchId = _activeBranchId;
+
+    if (branchId != null && branchId.isNotEmpty) {
+      return _service.getBranchBooksPage(
+        branchId,
+        page: page,
+        perPage: _perPage,
+        sort: _activeSort,
+        status: _activeStatus,
+        search: _activeKeyword,
+      );
+    }
+
+    return _service.getCatalogBooksPage(
+      page: page,
+      perPage: _perPage,
+      search: _activeKeyword,
+      status: _activeStatus,
+      sort: _activeSort,
+    );
   }
 
   void addRecentSearch(String value) {
     final cleanValue = value.trim();
-
     if (cleanValue.isEmpty) return;
 
     recentSearches.removeWhere(
@@ -216,30 +232,17 @@ class LibrarySearchController extends GetxController {
     if (recentSearches.length > 8) {
       recentSearches.removeRange(8, recentSearches.length);
     }
+
+    _safeUpdate();
   }
 
   void removeRecentSearch(String value) {
     recentSearches.remove(value);
+    _safeUpdate();
   }
 
   void clearRecentSearches() {
     recentSearches.clear();
-  }
-
-  void replaceTrendingKeywords(List<String> values) {
-    trendingKeywords.assignAll(values);
-  }
-
-  void replaceTrendingBooks(List<LibrarySearchBook> books) {
-    trendingBooks.assignAll(books);
-  }
-
-  void replaceLastViewedBooks(List<LibrarySearchBook> books) {
-    lastViewedBooks.assignAll(books);
-  }
-
-  void replaceAllBooks(List<LibrarySearchBook> books) {
-    allBooks.assignAll(books);
+    _safeUpdate();
   }
 }
-

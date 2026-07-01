@@ -15,11 +15,27 @@ class StaffQrScannerPage extends StatefulWidget {
     this.description =
         'Arahkan kamera ke QR Code di layar HP mahasiswa atau barcode di buku',
     this.onScanned,
+    this.onCode,
+    this.bottomOverlay,
   });
 
   final String title;
   final String description;
   final ValueChanged<String>? onScanned;
+
+  /// Continuous-scan handler. When provided, the page does NOT show the
+  /// "Proses Peminjaman / Scan Ulang" confirmation sheet or pop with a code;
+  /// instead it calls this for every read and keeps the camera alive when the
+  /// handler returns `true` (e.g. a book added to the cart), or pops the page
+  /// when it returns `false` (pickup/return handed off to another flow). This
+  /// is what lets staff scan many books back-to-back without the camera ever
+  /// tearing down. When null, the legacy scan-once-then-pop behavior is used
+  /// (member QR lookup still relies on that).
+  final Future<bool> Function(String code)? onCode;
+
+  /// Optional widget pinned above the bottom actions while the camera is live
+  /// — used to float the borrow-cart summary bar over the viewfinder.
+  final Widget? bottomOverlay;
 
   @override
   State<StaffQrScannerPage> createState() => _StaffQrScannerPageState();
@@ -112,6 +128,20 @@ class _StaffQrScannerPageState extends State<StaffQrScannerPage>
     await Future.delayed(const Duration(milliseconds: 550));
 
     if (!mounted) return;
+
+    // Continuous mode: no confirmation sheet. Delegate to the handler and
+    // keep the camera alive (restart) unless it asks to close.
+    if (widget.onCode != null) {
+      final keepScanning = await widget.onCode!(code);
+      if (!mounted) return;
+
+      if (keepScanning) {
+        await _restartScanner();
+      } else {
+        Navigator.of(context).pop();
+      }
+      return;
+    }
 
     final shouldClosePage = await _showScanResultBottomSheet(code);
 
@@ -331,6 +361,18 @@ class _StaffQrScannerPageState extends State<StaffQrScannerPage>
               ),
             ),
           ),
+
+          // 8. Optional overlay (borrow-cart summary bar) pinned above actions
+          if (widget.bottomOverlay != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 120,
+              child: SafeArea(
+                top: false,
+                child: widget.bottomOverlay!,
+              ),
+            ),
         ],
       ),
     );

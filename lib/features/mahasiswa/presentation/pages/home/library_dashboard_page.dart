@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/home/library_dashboard_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/notification/library_notification_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/cart/library_cart_page.dart';
@@ -249,6 +250,19 @@ class _TrendingBookSlider extends StatelessWidget {
   const _TrendingBookSlider({required this.books});
   final List<BookModel> books;
 
+  /// Opens the real book detail: seed the shared controller with the tapped
+  /// book (instant render) then let it fetch full detail + similar books.
+  void _openDetail(BookModel book) {
+    final ctrl = Get.isRegistered<LibraryBookDetailController>()
+        ? Get.find<LibraryBookDetailController>()
+        : Get.put(LibraryBookDetailController(), permanent: true);
+    ctrl.setBook(book);
+    if (book.branchId != null && book.branchId!.isNotEmpty) {
+      ctrl.loadBookDetail(book.bookId, book.branchId!);
+    }
+    Get.to(() => const LibraryBookDetailPage(), transition: Transition.cupertino);
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -271,9 +285,10 @@ class _TrendingBookSlider extends StatelessWidget {
                 rating: book.ratingLabel,
                 imageUrl: book.coverUrl ?? '',
                 isAvailable: book.isAvailable,
+                categoryLabel: book.category?.name,
                 libraryLocation: book.locationLabel,
-                onTap: () => Get.to(() => LibraryBookDetailPage()),
-                onBorrowTap: () => Get.to(() => LibraryBookDetailPage()),
+                onTap: () => _openDetail(book),
+                onBorrowTap: () => _openDetail(book),
               ),
             );
           }),

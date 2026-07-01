@@ -5,12 +5,13 @@ import 'package:lumina_library/core/theme/lumina_colors.dart';
 import 'package:lumina_library/core/theme/lumina_radius.dart';
 import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/search/library_search_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/widgets/catalog/library_trending_book_card.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/catalog/library_book_detail_page.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/search/library_search_result_page.dart';
+import 'package:lumina_library/shared/models/book/book_model.dart';
 import 'package:lumina_library/shared/models/library/library_branch_model.dart';
-import 'package:lumina_library/shared/models/search/library_search_book_model.dart';
 
 class LibrarySearchPage extends StatefulWidget {
   const LibrarySearchPage({
@@ -55,7 +56,9 @@ class _LibrarySearchPageState extends State<LibrarySearchPage> {
     _focusNode = FocusNode();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
     });
   }
 
@@ -66,8 +69,14 @@ class _LibrarySearchPageState extends State<LibrarySearchPage> {
     super.dispose();
   }
 
-  void _goToBookDetail(LibrarySearchBook book) {
+  void _goToBookDetail(BookModel book) {
     controller.addRecentSearch(book.title);
+
+    final ctrl = Get.isRegistered<LibraryBookDetailController>()
+        ? Get.find<LibraryBookDetailController>()
+        : Get.put(LibraryBookDetailController(), permanent: true);
+
+    ctrl.openBook(book);
 
     Get.to(
       () => const LibraryBookDetailPage(),
@@ -79,16 +88,15 @@ class _LibrarySearchPageState extends State<LibrarySearchPage> {
     String value, {
     required bool searchInCurrentLibrary,
   }) {
-    final keyword = value.trim();
+    final searchKeyword = value.trim();
+    if (searchKeyword.isEmpty) return;
 
-    if (keyword.isEmpty) return;
-
-    controller.addRecentSearch(keyword);
-    controller.setKeyword(keyword);
+    controller.addRecentSearch(searchKeyword);
+    controller.setKeyword(searchKeyword);
 
     Get.to(
       () => LibrarySearchResultPage(
-        initialKeyword: keyword,
+        initialKeyword: searchKeyword,
         searchInCurrentLibrary: searchInCurrentLibrary,
         libraryId: searchInCurrentLibrary ? widget.scopedLibrary?.id : null,
         libraryName: searchInCurrentLibrary ? widget.scopedLibrary?.name : null,
@@ -129,68 +137,88 @@ class _LibrarySearchPageState extends State<LibrarySearchPage> {
             onSubmitted: _submitDefaultSearch,
           ),
           Expanded(
-            child: Obx(() {
-              final keyword = controller.keyword.value.trim();
-              final isTyping = keyword.isNotEmpty;
+            child: GetBuilder<LibrarySearchController>(
+              init: controller,
+              autoRemove: false,
+              builder: (controller) {
+                final searchKeyword = controller.keyword.value.trim();
 
-              return ListView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(
-                  LuminaSpacing.marginMobile,
-                  LuminaSpacing.lg,
-                  LuminaSpacing.marginMobile,
-                  LuminaSpacing.xl,
-                ),
-                children: [
-                  if (isTyping) ...[
-                    _SearchTypingSuggestionSection(
-                      keyword: keyword,
-                      scopedLibraryName: scopedLibraryName,
-                      hasScopedLibrary: _hasScopedLibrary,
-                      onSearchInCurrentLibrary: () {
-                        _goToSearchResult(
-                          keyword,
-                          searchInCurrentLibrary: true,
-                        );
-                      },
-                      onSearchInAllLibraries: () {
-                        _goToSearchResult(
-                          keyword,
-                          searchInCurrentLibrary: false,
-                        );
-                      },
+                if (searchKeyword.isNotEmpty) {
+                  return ListView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(
+                      LuminaSpacing.marginMobile,
+                      LuminaSpacing.lg,
+                      LuminaSpacing.marginMobile,
+                      LuminaSpacing.xl,
                     ),
-                  ] else ...[
-                    _SearchHistorySection(
-                      items: controller.recentSearches,
-                      onTap: _selectKeyword,
-                      onRemove: controller.removeRecentSearch,
-                      onClear: controller.clearRecentSearches,
-                    ),
-                    if (controller.recentSearches.isNotEmpty)
-                      const SizedBox(height: LuminaSpacing.xl),
+                    children: [
+                      _SearchTypingSuggestionSection(
+                        keyword: searchKeyword,
+                        scopedLibraryName: scopedLibraryName,
+                        hasScopedLibrary: _hasScopedLibrary,
+                        onSearchInCurrentLibrary: () {
+                          _goToSearchResult(
+                            searchKeyword,
+                            searchInCurrentLibrary: true,
+                          );
+                        },
+                        onSearchInAllLibraries: () {
+                          _goToSearchResult(
+                            searchKeyword,
+                            searchInCurrentLibrary: false,
+                          );
+                        },
+                      ),
+                    ],
+                  );
+                }
+
+                final recentItems =
+                    controller.recentSearches.toList(growable: false);
+
+                final trendingKeywordItems = controller.filteredTrendingKeywords;
+
+                final trendingBooks =
+                    controller.trendingBooks.toList(growable: false);
+
+                return ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(
+                    LuminaSpacing.marginMobile,
+                    LuminaSpacing.lg,
+                    LuminaSpacing.marginMobile,
+                    LuminaSpacing.xl,
+                  ),
+                  children: [
+                    if (recentItems.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: LuminaSpacing.xl,
+                        ),
+                        child: _SearchHistorySection(
+                          items: recentItems,
+                          onTap: _selectKeyword,
+                          onRemove: controller.removeRecentSearch,
+                          onClear: controller.clearRecentSearches,
+                        ),
+                      ),
                     _TrendingKeywordSection(
-                      items: controller.filteredTrendingKeywords,
+                      items: trendingKeywordItems,
                       onTap: _selectKeyword,
-                    ),
-                    const SizedBox(height: LuminaSpacing.xl),
-                    _HorizontalBookSection(
-                      title: 'Buku Terakhir Dilihat',
-                      books: controller.lastViewedBooks,
-                      onBookTap: _goToBookDetail,
                     ),
                     const SizedBox(height: LuminaSpacing.xl),
                     _HorizontalBookSection(
                       title: 'Sedang Trending',
                       subtitle: 'Rekomendasi buku populer saat ini.',
-                      books: controller.trendingBooks,
+                      books: trendingBooks,
                       onBookTap: _goToBookDetail,
                       showTrendBadge: true,
                     ),
                   ],
-                ],
-              );
-            }),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -319,16 +347,20 @@ class _SearchTypingSuggestionSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currentLibraryName =
+        scopedLibraryName != null && scopedLibraryName!.trim().isNotEmpty
+            ? scopedLibraryName!
+            : 'Perpustakaan Ini';
+
     return Column(
       children: [
-        if (hasScopedLibrary) ...[
+        if (hasScopedLibrary)
           _SearchSuggestionTile(
             keyword: keyword,
-            scopeText: 'di ${scopedLibraryName!}',
+            scopeText: 'di $currentLibraryName',
             icon: Icons.local_library_rounded,
             onTap: onSearchInCurrentLibrary,
           ),
-        ],
         _SearchSuggestionTile(
           keyword: keyword,
           scopeText: 'di Semua Perpustakaan',
@@ -613,8 +645,8 @@ class _HorizontalBookSection extends StatelessWidget {
 
   final String title;
   final String? subtitle;
-  final List<LibrarySearchBook> books;
-  final ValueChanged<LibrarySearchBook> onBookTap;
+  final List<BookModel> books;
+  final ValueChanged<BookModel> onBookTap;
   final bool showTrendBadge;
 
   @override
@@ -651,9 +683,10 @@ class _HorizontalBookSection extends StatelessWidget {
                       width: 142,
                       title: book.title,
                       author: book.author,
-                      rating: book.rating,
-                      imageUrl: book.imageUrl,
+                      rating: book.ratingLabel,
+                      imageUrl: book.coverUrl ?? '',
                       isAvailable: book.isAvailable,
+                      categoryLabel: book.category?.name,
                       showBorrowButton: false,
                       showAvailabilityStatus: false,
                       showRatingBadge: true,

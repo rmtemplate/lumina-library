@@ -177,6 +177,7 @@ class HomeApiService {
   Future<({List<BookModel> items, bool hasMorePages})> getCatalogBooksPage({
     int page = 1,
     int perPage = 15,
+    String? search,
     String? categorySlug,
     String? status,
     int? year,
@@ -187,6 +188,7 @@ class HomeApiService {
       'limit': perPage.toString(),
       'page': page.toString(),
     };
+    if (search != null && search.isNotEmpty) query['search'] = search;
     if (categorySlug != null && categorySlug.isNotEmpty) {
       query['category_slug'] = categorySlug;
     }
@@ -419,11 +421,15 @@ class HomeApiService {
 
   /// POST /api/v1/borrowings/{id}/qr/refresh — perbarui QR pickup.
   /// Hanya untuk borrowing dengan status awaiting_pickup.
-  Future<CheckoutQrModel> refreshPickupQr(String borrowingId) async {
-    debugPrint('[QR][API] refreshPickupQr — borrowingId=$borrowingId');
+  /// [force] = true only when the member taps "Perbarui QR". With force=false
+  /// the backend returns the SAME active QR if one is still valid (one active
+  /// QR per borrowing+type), so opening/rebuilding the sheet never regenerates.
+  Future<CheckoutQrModel> refreshPickupQr(String borrowingId, {bool force = false}) async {
+    debugPrint('[QR][API] refreshPickupQr — borrowingId=$borrowingId force=$force');
     debugPrint('[QR][API] Endpoint: POST /api/v1/borrowings/$borrowingId/qr/refresh');
     final response = await _client.post<Map<String, dynamic>>(
       '/borrowings/$borrowingId/qr/refresh',
+      body: {'force': force},
       fromData: (data) => data as Map<String, dynamic>,
     );
     final qrJson = response.data!['qr'] as Map<String, dynamic>? ?? {};
@@ -509,12 +515,15 @@ class HomeApiService {
 
   /// POST /api/v1/my-books/{borrowingId}/return-qr/refresh
   /// Buat/perbarui QR pengembalian buku.
-  Future<CheckoutQrModel> refreshReturnQr(String borrowingId) async {
-    debugPrint('[QR][API] refreshReturnQr — borrowingId=$borrowingId');
+  /// [force] = true only when the member taps "Perbarui QR". With force=false
+  /// the backend returns the SAME active QR if one is still valid.
+  Future<CheckoutQrModel> refreshReturnQr(String borrowingId, {bool force = false}) async {
+    debugPrint('[QR][API] refreshReturnQr — borrowingId=$borrowingId force=$force');
     debugPrint('[QR][API] Endpoint: POST /api/v1/my-books/$borrowingId/return-qr/refresh');
 
     final response = await _client.post<Map<String, dynamic>>(
       '/my-books/$borrowingId/return-qr/refresh',
+      body: {'force': force},
       fromData: (data) => data as Map<String, dynamic>,
     );
     final qrJson = response.data!['qr'] as Map<String, dynamic>? ?? {};

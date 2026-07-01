@@ -16,10 +16,55 @@ class LibraryBookDetailController extends GetxController {
 
   final Rx<BookModel?> currentBook = Rx<BookModel?>(null);
 
+  // ── Similar books ──────────────────────────────────────────────────────────
+  final RxBool isSimilarLoading = false.obs;
+  final RxList<BookModel> similarBooks = <BookModel>[].obs;
+
   void setBook(BookModel book) {
     currentBook.value = book;
     isBookmarked.value = book.userContext?.isWishlisted ?? false;
     _syncCartState(book.id);
+    loadSimilarBooks(book);
+  }
+
+  /// Same-category books from the catalog endpoint, excluding the book being
+  /// viewed. No dedicated "similar" endpoint exists on the backend — this is
+  /// the documented reuse of GET /books?category_slug=…&sort=trending.
+  Future<void> loadSimilarBooks(BookModel book) async {
+    final slug = book.category?.slug;
+    if (slug == null || slug.isEmpty) {
+      similarBooks.clear();
+      return;
+    }
+
+    isSimilarLoading.value = true;
+    try {
+      final result = await Get.find<HomeApiService>().getCatalogBooks(
+        categorySlug: slug,
+        sort: 'trending',
+        limit: 12,
+      );
+      similarBooks.assignAll(
+        result.where((b) => b.bookId != book.bookId).take(10),
+      );
+    } on LuminaApiException catch (_) {
+      similarBooks.clear();
+    } catch (_) {
+      similarBooks.clear();
+    } finally {
+      isSimilarLoading.value = false;
+    }
+  }
+
+  /// Opens another book's detail from the Similar list — same seed-then-fetch
+  /// pattern the rest of the app uses.
+  void openBook(BookModel book) {
+    // setBook (instant render + similar). loadBookDetail also calls setBook on
+    // success, so only fetch when we have a branch to fetch against.
+    setBook(book);
+    if (book.branchId != null && book.branchId!.isNotEmpty) {
+      loadBookDetail(book.bookId, book.branchId!);
+    }
   }
 
   void _syncCartState(String bookId) {

@@ -8,6 +8,7 @@ import 'package:lumina_library/core/theme/lumina_spacing.dart';
 import 'package:lumina_library/core/theme/lumina_text_styles.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/controllers/catalog/library_book_detail_controller.dart';
 import 'package:lumina_library/features/mahasiswa/presentation/pages/cart/library_cart_page.dart';
+import 'package:lumina_library/features/mahasiswa/presentation/widgets/catalog/library_trending_book_card.dart';
 import 'package:lumina_library/shared/models/book/book_model.dart';
 import 'package:lumina_library/shared/widgets/feedback/lumina_toast.dart';
 import 'package:lumina_library/shared/widgets/skeleton/lumina_skeleton.dart';
@@ -95,7 +96,7 @@ class LibraryBookDetailPage extends StatelessWidget {
                             onToggle: ctrl.toggleSynopsis,
                           ),
                           const SizedBox(height: LuminaSpacing.xl),
-                          const _SimilarBooksSection(),
+                          _SimilarBooksSection(controller: ctrl),
                         ],
                       ),
               ),
@@ -743,161 +744,110 @@ class _SynopsisSection extends StatelessWidget {
   }
 }
 
+/// Similar Books — same-category books from the backend (see
+/// LibraryBookDetailController.loadSimilarBooks). Shows a loading row while
+/// fetching and a proper empty state when the category has no other books.
 class _SimilarBooksSection extends StatelessWidget {
-  const _SimilarBooksSection();
+  const _SimilarBooksSection({required this.controller});
+
+  final LibraryBookDetailController controller;
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Text(
-                'Similar Books',
-                style: LuminaTextStyles.headlineSm.copyWith(
-                  color: LuminaColors.primary,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () {},
-              child: Text(
-                'View all',
-                style: LuminaTextStyles.labelMd.copyWith(
-                  color: LuminaColors.secondary,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0,
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: LuminaSpacing.md),
-
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          physics: const BouncingScrollPhysics(),
-          clipBehavior: Clip.none,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              _SimilarBookItem(
-                title: 'Thinking, Fast and Slow',
-                author: 'Daniel Kahneman',
-                imageUrl:
-                    'https://lh3.googleusercontent.com/aida-public/AB6AXuA5MSIL9UMEUDxdEOPOh8AeFdZTzd5pn7-vWnH5-TWDIpC89I-W4DmPzL_2zFCa2jl2LTZqDiU5-l9hWTXO1_bRH62mNsI7WM_sJolEUvesxr-bF-qUqVdaPThjAUqckhc1Q7qSlaJiAFEIkP1ZiSMqV1_TlXOpfFECKAZtvq1K-y7AVM2ldJ8G-LJOOIdaZ5IuuXvwdaFlieS8xsBaHuUdpC05EaZ6NRhVUPZAgzpxtqme3UNNq2dXIv2x4By5aVKzSUShjj6aVjqJ',
-              ),
-
-              SizedBox(width: LuminaSpacing.md),
-
-              _SimilarBookItem(
-                title: 'Sapiens: A Brief History of Humankind',
-                author: 'Yuval Noah Harari',
-                imageUrl:
-                    'https://lh3.googleusercontent.com/aida-public/AB6AXuAFEWu1BfcyY2SOmgrOjhQEaA8xik_NCxRJ_7_uyQ-1QWdBpc1hErB_-Z_cC9YUhLTmP5oI48ialhp0G2_o7JNGf7UiukjKQmnRl0Qtm3dkczUqd4xj1tsyLSWk6XpCvUUJdDCGuWfFi7VVxYbE28_R9TAuuYG4HPg1ZH-zvlhA_YtkdQ0V-foUIThZvrpT7wmi_q7z21Jx3NMAfAAnwjXz5ZyK-5ZGcITjedCt-WA',
-              ),
-
-              SizedBox(width: LuminaSpacing.md),
-
-              _SimilarBookItem(
-                title: 'Quiet',
-                author: 'Susan Cain',
-                imageUrl: '',
-              ),
-            ],
+        Text(
+          'Similar Books',
+          style: LuminaTextStyles.headlineSm.copyWith(
+            color: LuminaColors.primary,
+            fontWeight: FontWeight.w800,
           ),
         ),
+        const SizedBox(height: LuminaSpacing.md),
+        Obx(() {
+          if (controller.isSimilarLoading.value) {
+            return const SizedBox(
+              height: 220,
+              child: Center(
+                child: SizedBox(
+                  width: 26,
+                  height: 26,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: LuminaColors.secondary,
+                  ),
+                ),
+              ),
+            );
+          }
+
+          final books = controller.similarBooks;
+          if (books.isEmpty) {
+            return const _SimilarBooksEmpty();
+          }
+
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            clipBehavior: Clip.none,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: List.generate(books.length, (index) {
+                final book = books[index];
+                final isLast = index == books.length - 1;
+                return Padding(
+                  padding: EdgeInsets.only(
+                    right: isLast ? 0 : LuminaSpacing.md,
+                  ),
+                  child: LibraryTrendingBookCard(
+                    width: 132,
+                    title: book.title,
+                    author: book.author,
+                    rating: book.ratingLabel,
+                    imageUrl: book.coverUrl ?? '',
+                    isAvailable: book.isAvailable,
+                    showBorrowButton: false,
+                    showRatingBadge: true,
+                    onTap: () => controller.openBook(book),
+                  ),
+                );
+              }),
+            ),
+          );
+        }),
       ],
     );
   }
 }
 
-class _SimilarBookItem extends StatelessWidget {
-  const _SimilarBookItem({
-    required this.title,
-    required this.author,
-    required this.imageUrl,
-  });
-
-  final String title;
-  final String author;
-  final String imageUrl;
+class _SimilarBooksEmpty extends StatelessWidget {
+  const _SimilarBooksEmpty();
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 128,
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        vertical: LuminaSpacing.lg,
+        horizontal: LuminaSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: LuminaColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+        border: Border.all(color: LuminaColors.outlineVariant, width: 1),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          AspectRatio(
-            aspectRatio: 2 / 3,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(LuminaRadius.md),
-              child: imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return Container(
-                          color: LuminaColors.surfaceContainer,
-                          child: const Center(
-                            child: SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: LuminaColors.secondary,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          color: LuminaColors.surfaceContainer,
-                          child: const Icon(
-                            Icons.menu_book_rounded,
-                            color: LuminaColors.primary,
-                            size: 40,
-                          ),
-                        );
-                      },
-                    )
-                  : Container(
-                      color: LuminaColors.surfaceContainer,
-                      child: const Icon(
-                        Icons.menu_book_rounded,
-                        color: LuminaColors.primary,
-                        size: 40,
-                      ),
-                    ),
-            ),
-          ),
-
+          const Icon(Icons.auto_stories_outlined,
+              color: LuminaColors.outline, size: 34),
           const SizedBox(height: LuminaSpacing.sm),
-
           Text(
-            title,
+            'Belum ada buku serupa',
+            textAlign: TextAlign.center,
             style: LuminaTextStyles.bodyMd.copyWith(
-              color: LuminaColors.onSurface,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-
-          const SizedBox(height: 2),
-
-          Text(
-            author,
-            style: LuminaTextStyles.labelMd.copyWith(
               color: LuminaColors.onSurfaceVariant,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],

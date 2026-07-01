@@ -10,6 +10,7 @@ class LibraryTrendingBookCard extends LuminaBookCard {
     required super.imageUrl,
     required super.isAvailable,
     super.libraryLocation,
+    super.categoryLabel,
     super.width = 160,
     super.imageAspectRatio = 2 / 3,
     super.showRatingBadge = true,

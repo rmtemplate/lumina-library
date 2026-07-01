@@ -103,7 +103,7 @@ class CheckoutItemModel {
 }
 
 class CheckoutQrModel {
-  const CheckoutQrModel({
+  CheckoutQrModel({
     required this.id,
     required this.code,
     required this.imageDataUri,
@@ -141,7 +141,19 @@ class CheckoutQrModel {
   /// NOT guarantee the bytes are a renderable raster image. Check
   /// [isRenderableRasterImage] / [isSvgContent] before passing to
   /// `Image.memory`.
+  // Memoized so repeated access returns the SAME Uint8List instance. Without
+  // this, every rebuild (e.g. a 1s countdown tick) hands Image.memory a fresh
+  // byte list, forcing a re-decode that visibly flickers the QR. Decode once.
+  Uint8List? _decodedBytes;
+  bool _didDecode = false;
+
   Uint8List? get imageBytes {
+    if (_didDecode) return _decodedBytes;
+    _didDecode = true;
+    return _decodedBytes = _decodeImageBytes();
+  }
+
+  Uint8List? _decodeImageBytes() {
     final raw = imageDataUri.trim();
     if (raw.isEmpty) {
       debugPrint('[QR][DECODE] imageDataUri is empty — nothing to decode');

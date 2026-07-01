@@ -123,10 +123,64 @@ class _LibraryMyBookDetailPageState extends State<LibraryMyBookDetailPage> {
         case 'payment.cancelled':
         case 'borrowing.overdue':
         case 'return.success':
+        // Staff scanned the Return QR → loan is now
+        // return_pending_verification; refetch flips the page to the
+        // "waiting for staff verification" state and hides the QR button.
+        case 'return.pending_verification':
+        // Staff finished verifying → charges finalized. Refetch surfaces the
+        // waiting_payment state (fine card + "Proceed to Payment") or closes
+        // the loan when nothing is owed. No manual refresh needed.
+        case 'return.verified':
         case 'qr.expired':
           unawaited(_refetchBook());
+        // ── Two-stage return flow — the single unified event ───────────────
+        case 'borrowing.updated':
+          _handleBorrowingUpdated(event);
       }
     });
+  }
+
+  /// Drives the entire two-stage return flow in realtime from ONE event. Each
+  /// [action] refreshes Borrow Detail; payment_created auto-opens the payment
+  /// sheet; completion shows an animation and returns to My Books.
+  Future<void> _handleBorrowingUpdated(WebSocketEvent event) async {
+    final action = (event.data['action'] as String?) ?? '';
+    await _refetchBook();
+    if (!mounted) return;
+
+    switch (action) {
+      case 'return_received':
+        LuminaToast.success('Buku pengembalian Anda telah diterima petugas.');
+      case 'overdue_payment_created':
+      case 'damage_payment_created':
+        // Refresh already surfaced waiting_payment — auto-open the sheet so the
+        // student pays without tapping another button.
+        LuminaToast.info(
+          action == 'overdue_payment_created'
+              ? 'Ada denda keterlambatan yang harus dibayar.'
+              : 'Ada biaya kerusakan yang harus dibayar.',
+        );
+        unawaited(_handleProceedToPayment());
+      case 'overdue_payment_paid':
+        LuminaToast.success('Denda keterlambatan lunas. Menunggu inspeksi buku.');
+      case 'damage_payment_paid':
+        LuminaToast.success('Biaya kerusakan lunas.');
+      case 'borrowing_completed':
+        await _showCompletionThenLeave();
+    }
+  }
+
+  /// Completion animation → after ~2s pop back to My Books.
+  Future<void> _showCompletionThenLeave() async {
+    if (!mounted) return;
+    unawaited(showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _BorrowingCompletedDialog(),
+    ));
+    await Future.delayed(const Duration(seconds: 2));
+    if (Get.isDialogOpen ?? false) Get.back();
+    if (mounted) Get.back();
   }
 
   void _openRoutePage() {
@@ -230,18 +284,25 @@ class _LibraryMyBookDetailPageState extends State<LibraryMyBookDetailPage> {
   @override
   Widget build(BuildContext context) {
     final book = _book;
-    final showReturnQr = book.canReturn;
-    final showPickupQr = book.canPickup || book.isAwaitingPickup;
+    // Buttons are rendered STRICTLY from backend action flags — never from
+    // status / overdue_days / total_fine. The backend is the single source of
+    // truth (see MyBookResource `actions` + `workflow`).
+    final showReturnQr = book.canGenerateReturnQr;
+    final showPickupQr = book.canPickup;
     final showQrButton = showReturnQr || showPickupQr;
-    // Overdue / payment-required: hide every other borrowing action, show
-    // only the single "Proceed to Payment" primary button.
-    final mustPayFine = book.mustPayFine;
+    // Payment button shows ONLY when the backend says a stage is payable
+    // (waiting_overdue_payment or waiting_damage_payment) — so it never appears
+    // for a plain-overdue loan that hasn't been scanned yet.
+    final canPay = book.canPay;
 
     return Scaffold(
       backgroundColor: LuminaColors.background,
-      bottomNavigationBar: (showQrButton || mustPayFine)
+      bottomNavigationBar: (showQrButton || canPay)
           ? _LoanBottomActionBar(
-              mustPayFine: mustPayFine,
+              mustPayFine: canPay,
+              payLabel: book.canPayDamage
+                  ? 'Bayar Biaya Kerusakan'
+                  : 'Bayar Denda Keterlambatan',
               hasPendingPayment: _existingPayment != null,
               showPickupQr: showPickupQr,
               showReturnQr: showReturnQr,
@@ -259,7 +320,7 @@ class _LibraryMyBookDetailPageState extends State<LibraryMyBookDetailPage> {
                   ? const _LoanDetailSkeleton(key: ValueKey('skeleton'))
                   : _loadError != null
                       ? _LoanDetailErrorState(key: const ValueKey('error'), onRetry: () => _refetchBook(silent: false))
-                      : _LoanDetailBody(key: const ValueKey('body'), book: book, mustPayFine: mustPayFine, onRouteTap: _openRoutePage),
+                      : _LoanDetailBody(key: const ValueKey('body'), book: book, mustPayFine: canPay, onRouteTap: _openRoutePage),
             ),
           ),
         ],
@@ -544,6 +605,8 @@ class _LoanStatusChip extends StatelessWidget {
         return Icons.warning_amber_rounded;
       case LibraryMyBookStatus.readyForReturn:
         return Icons.assignment_return_rounded;
+      case LibraryMyBookStatus.returnPendingVerification:
+        return Icons.hourglass_bottom_rounded;
       case LibraryMyBookStatus.finished:
         return Icons.assignment_turned_in_rounded;
       case LibraryMyBookStatus.waitingPayment:
@@ -569,6 +632,8 @@ class _LoanStatusChip extends StatelessWidget {
         return LuminaColors.error;
       case LibraryMyBookStatus.readyForReturn:
         return LuminaColors.secondary;
+      case LibraryMyBookStatus.returnPendingVerification:
+        return LuminaColors.primary;
       case LibraryMyBookStatus.finished:
         return LuminaColors.secondary;
       case LibraryMyBookStatus.waitingPayment:
@@ -593,6 +658,8 @@ class _LoanStatusChip extends StatelessWidget {
         return LuminaColors.errorContainer.withOpacity(0.62);
       case LibraryMyBookStatus.readyForReturn:
         return LuminaColors.secondary.withOpacity(0.12);
+      case LibraryMyBookStatus.returnPendingVerification:
+        return LuminaColors.primaryFixed.withOpacity(0.38);
       case LibraryMyBookStatus.finished:
         return LuminaColors.secondary.withOpacity(0.12);
       case LibraryMyBookStatus.waitingPayment:
@@ -925,6 +992,16 @@ class _FineSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Damage stage is a DIFFERENT charge — never show the overdue-days /
+    // fine-per-day breakdown there (that made the damage total read like the
+    // old overdue price). Title + breakdown follow the backend workflow.
+    final isDamage = book.canPayDamage;
+    final title = isDamage
+        ? 'Biaya Kerusakan'
+        : book.canPayOverdue
+            ? 'Denda Keterlambatan'
+            : (book.mustPayFine ? 'Payment Required' : 'Outstanding Fine');
+
     return Container(
       padding: const EdgeInsets.all(LuminaSpacing.md),
       decoration: BoxDecoration(
@@ -954,43 +1031,55 @@ class _FineSummaryCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: LuminaSpacing.sm),
-              Text(
-                book.mustPayFine ? 'Payment Required' : 'Outstanding Fine',
-                style: LuminaTextStyles.bodyMd.copyWith(
-                  color: LuminaColors.onErrorContainer,
-                  fontWeight: FontWeight.w900,
+              Expanded(
+                child: Text(
+                  title,
+                  style: LuminaTextStyles.bodyMd.copyWith(
+                    color: LuminaColors.onErrorContainer,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: LuminaSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: _FineBreakdownItem(
-                  label: 'Overdue Days',
-                  value: '${book.overdueDays} Days',
+          if (isDamage)
+            // Damage: no overdue breakdown — just the amount to pay.
+            _FineBreakdownItem(
+              label: 'Total Biaya',
+              value: book.fineAmountText,
+              emphasize: true,
+            )
+          else
+            Row(
+              children: [
+                Expanded(
+                  child: _FineBreakdownItem(
+                    label: 'Overdue Days',
+                    value: '${book.overdueDays} Days',
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _FineBreakdownItem(
-                  label: 'Fine Per Day',
-                  value: book.finePerDayText,
+                Expanded(
+                  child: _FineBreakdownItem(
+                    label: 'Fine Per Day',
+                    value: book.finePerDayText,
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _FineBreakdownItem(
-                  label: 'Total Fine',
-                  value: book.fineAmountText,
-                  emphasize: true,
+                Expanded(
+                  child: _FineBreakdownItem(
+                    label: 'Total Fine',
+                    value: book.fineAmountText,
+                    emphasize: true,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           if (book.mustPayFine) ...[
             const SizedBox(height: LuminaSpacing.sm),
             Text(
-              'Complete the payment below to continue.',
+              book.workflowStepDescription.isNotEmpty
+                  ? book.workflowStepDescription
+                  : 'Selesaikan pembayaran di bawah untuk melanjutkan.',
               style: LuminaTextStyles.labelMd.copyWith(
                 color: LuminaColors.onErrorContainer.withOpacity(0.78),
                 fontWeight: FontWeight.w600,
@@ -1046,6 +1135,7 @@ class _FineBreakdownItem extends StatelessWidget {
 class _LoanBottomActionBar extends StatelessWidget {
   const _LoanBottomActionBar({
     required this.mustPayFine,
+    required this.payLabel,
     required this.hasPendingPayment,
     required this.showPickupQr,
     required this.showReturnQr,
@@ -1054,6 +1144,7 @@ class _LoanBottomActionBar extends StatelessWidget {
   });
 
   final bool mustPayFine;
+  final String payLabel;
   final bool hasPendingPayment;
   final bool showPickupQr;
   final bool showReturnQr;
@@ -1075,7 +1166,7 @@ class _LoanBottomActionBar extends StatelessWidget {
             onPressed: onPayFineTap,
             icon: const Icon(Icons.payment_rounded, size: 20),
             label: Text(
-              hasPendingPayment ? 'Continue Payment' : 'Proceed to Payment',
+              hasPendingPayment ? 'Lanjutkan Pembayaran' : payLabel,
               style: LuminaTextStyles.titleSm.copyWith(color: Colors.white, fontWeight: FontWeight.w900),
             ),
             style: ElevatedButton.styleFrom(
@@ -1185,41 +1276,64 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
   static final Map<String, CheckoutQrModel> _qrCache = {};
   static final Map<String, DateTime> _qrExpiryCache = {};
 
-  Timer? _countdownTimer;
   StreamSubscription<WebSocketEvent>? _wsSubscription;
   CheckoutQrModel? _qr;
+  // Decoded once when a QR is applied and reused for the widget's whole life —
+  // the countdown lives in its own widget now, so the QR image never rebuilds
+  // on tick, but keeping a stable byte reference (+ gaplessPlayback) is the
+  // belt-and-suspenders against any flicker on the rare full-sheet rebuild.
+  Uint8List? _qrBytes;
+  DateTime? _expiry;
   bool _isLoading = true;
   bool _isRefreshing = false;
   bool _isExpired = false;
-  int _secondsLeft = 0;
   String? _invalidReason;
 
   String get _cacheKey =>
       '${widget.borrowingId}_${widget.isPickup ? "pickup" : "return"}';
 
-  String get _expectedQrType =>
-      widget.isPickup ? 'borrowing_pickup' : 'borrowing_return';
-
   @override
   void initState() {
     super.initState();
-    _fetchQr();
+    _initQr();
     unawaited(_enableScreenProtection());
     _listenToRealtimeEvents();
   }
 
+  /// Resolves the QR for the FIRST frame synchronously when a valid cached one
+  /// exists, so the sheet opens straight onto the QR — no loading spinner and
+  /// no "failed to load" flash before an async fetch resolves (the old jump).
+  void _initQr() {
+    final cached = _qrCache[_cacheKey];
+    final cachedExpiry = _qrExpiryCache[_cacheKey];
+
+    if (cached != null &&
+        cachedExpiry != null &&
+        DateTime.now().isBefore(cachedExpiry) &&
+        _validateQrImage(cached, source: 'cache')) {
+      _qr = cached;
+      _qrBytes = cached.imageBytes;
+      _expiry = cachedExpiry;
+      _isLoading = false;
+      return;
+    }
+
+    _isLoading = true;
+    unawaited(_fetchQr());
+  }
+
   @override
   void dispose() {
-    _countdownTimer?.cancel();
     _wsSubscription?.cancel();
     unawaited(_disableScreenProtection());
     super.dispose();
   }
 
-  /// Live updates while this sheet is open — a QR generated/refreshed from
-  /// another device session, or the backend force-expiring it, reflects
-  /// here instantly instead of waiting for the local countdown or a manual
-  /// "Perbarui QR" tap. Scoped to THIS borrowing + QR type only.
+  /// Live updates while this sheet is open. Websocket events must NEVER
+  /// regenerate the QR — that was the root of the "QR keeps refreshing / staff
+  /// scans a stale code" bug. We only react to EXPIRY here (dim the code so a
+  /// dead QR is never shown as scannable); the QR image itself changes solely
+  /// via the member's explicit "Perbarui QR" tap. Scoped to THIS borrowing.
   void _listenToRealtimeEvents() {
     if (!Get.isRegistered<WebSocketService>()) return;
 
@@ -1229,24 +1343,26 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
       switch (event.name) {
         case 'qr.generated':
         case 'qr.refreshed':
-          if (event.data['qr_type'] == _expectedQrType) {
-            debugPrint('[QR][WS] ${event.name} received for this sheet — refetching');
-            unawaited(_fetchQr(forceRefresh: true));
-          }
+          // Intentionally ignored: the backend now returns ONE stable active
+          // QR per borrowing+type, so these are informational only. Refetching
+          // here is exactly what caused the regenerate-on-rebuild loop.
+          debugPrint('[QR][WS] ${event.name} ignored — QR is stable until Refresh/expiry');
         case 'qr.expired':
           final qrIds = (event.data['qr_ids'] as List?)?.cast<dynamic>() ?? const [];
           if (qrIds.contains(_qr?.id) || _qr == null) {
             debugPrint('[QR][WS] qr.expired received for this sheet');
-            if (mounted) {
-              setState(() => _isExpired = true);
-              _countdownTimer?.cancel();
-            }
+            if (mounted) setState(() => _isExpired = true);
           }
         case 'borrowing.expired':
           debugPrint('[QR][WS] borrowing.expired received for this sheet');
-          if (mounted) {
-            setState(() => _isExpired = true);
-            _countdownTimer?.cancel();
+          if (mounted) setState(() => _isExpired = true);
+        case 'borrowing.updated':
+          // Staff scanned this Return QR (books received) → the code is now
+          // consumed; auto-close the QR sheet so the member sees the updated
+          // borrow detail instead of a stale QR.
+          if (event.data['action'] == 'return_received' && mounted) {
+            debugPrint('[QR][WS] return_received — closing QR sheet');
+            Navigator.of(context).maybePop();
           }
       }
     });
@@ -1291,63 +1407,23 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
     return 'Format gambar QR dari server tidak dikenali atau rusak.';
   }
 
+  /// Fetches the QR. Cache hits are resolved up-front in [_initQr] (so the
+  /// first frame never flashes a spinner); this only runs when there's no
+  /// valid local cache or on a "Coba Lagi" retry. [forceRefresh] maps to the
+  /// backend `force` flag — false (the default here) makes the backend REUSE
+  /// the existing active QR instead of generating a new one, so simply opening
+  /// the sheet never regenerates. It's only true when the current cached image
+  /// is corrupt and the retry genuinely needs a fresh code.
   Future<void> _fetchQr({bool forceRefresh = false}) async {
-    final cacheKey = _cacheKey;
-
-    if (!forceRefresh) {
-      final cached = _qrCache[cacheKey];
-      final cachedExpiry = _qrExpiryCache[cacheKey];
-
-      if (cached != null && cachedExpiry != null) {
-        debugPrint('[QR] Existing QR found');
-        debugPrint('[QR] Expired At: $cachedExpiry');
-        debugPrint('[QR] Current Time: ${DateTime.now()}');
-        if (DateTime.now().isBefore(cachedExpiry)) {
-          debugPrint('[QR] QR still valid');
-          if (_validateQrImage(cached, source: 'cache')) {
-            debugPrint('[QR] Using cached QR');
-            debugPrint('[QR] Skip refresh request');
-            if (mounted) {
-              setState(() {
-                _qr = cached;
-                _isLoading = false;
-                _invalidReason = null;
-              });
-              _startCountdown(cachedExpiry);
-            }
-            return;
-          }
-          debugPrint('[QR] Cached QR failed image validation — invalidating cache and requesting a fresh QR');
-          _qrCache.remove(cacheKey);
-          _qrExpiryCache.remove(cacheKey);
-          // Fall through to fetch a fresh QR below.
-        } else {
-          debugPrint('[QR] QR expired');
-        }
-      }
-    }
-
-    debugPrint('[QR] Requesting new QR');
-    debugPrint('[QR] Refresh endpoint: $_refreshEndpoint');
+    debugPrint('[QR] Requesting QR (force=$forceRefresh) — endpoint: $_refreshEndpoint');
     setState(() { _isLoading = true; });
     try {
       final service = Get.find<HomeApiService>();
       final qr = widget.isPickup
-          ? await service.refreshPickupQr(widget.borrowingId)
-          : await service.refreshReturnQr(widget.borrowingId);
+          ? await service.refreshPickupQr(widget.borrowingId, force: forceRefresh)
+          : await service.refreshReturnQr(widget.borrowingId, force: forceRefresh);
       if (!mounted) return;
-      final isValid = _validateQrImage(qr, source: 'fresh-fetch');
-      final expiry = _parseQrExpiry(qr);
-      _qrCache[cacheKey] = qr;
-      _qrExpiryCache[cacheKey] = expiry;
-      debugPrint('[QR] New QR received');
-      debugPrint('[QR] QR cache updated — expires at $expiry');
-      setState(() {
-        _qr = qr;
-        _isLoading = false;
-        _invalidReason = isValid ? null : _describeInvalidReason(qr);
-      });
-      if (isValid) _startCountdown(expiry);
+      _applyFetchedQr(qr, source: forceRefresh ? 'forced-fetch' : 'reuse-fetch');
     } on LuminaApiException catch (e) {
       if (!mounted) return;
       setState(() { _isLoading = false; });
@@ -1361,31 +1437,20 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
 
   Future<void> _refreshQr() async {
     if (_isRefreshing) return;
-    // Clear cache so the upcoming API call is not short-circuited by _fetchQr
+    // Clear cache so the upcoming API call is not short-circuited.
     _qrCache.remove(_cacheKey);
     _qrExpiryCache.remove(_cacheKey);
     setState(() { _isRefreshing = true; _isExpired = false; _invalidReason = null; });
-    _countdownTimer?.cancel();
-    debugPrint('[QR] Requesting new QR');
-    debugPrint('[QR] Refresh endpoint: $_refreshEndpoint');
+    debugPrint('[QR] Manual refresh (force=true) — endpoint: $_refreshEndpoint');
     try {
       final service = Get.find<HomeApiService>();
+      // The ONLY place that forces regeneration: invalidate the old QR and
+      // mint a new one server-side.
       final qr = widget.isPickup
-          ? await service.refreshPickupQr(widget.borrowingId)
-          : await service.refreshReturnQr(widget.borrowingId);
+          ? await service.refreshPickupQr(widget.borrowingId, force: true)
+          : await service.refreshReturnQr(widget.borrowingId, force: true);
       if (!mounted) return;
-      final isValid = _validateQrImage(qr, source: 'manual-refresh');
-      final expiry = _parseQrExpiry(qr);
-      _qrCache[_cacheKey] = qr;
-      _qrExpiryCache[_cacheKey] = expiry;
-      debugPrint('[QR] New QR received');
-      debugPrint('[QR] QR cache updated — expires at $expiry');
-      setState(() {
-        _qr = qr;
-        _isRefreshing = false;
-        _invalidReason = isValid ? null : _describeInvalidReason(qr);
-      });
-      if (isValid) _startCountdown(expiry);
+      _applyFetchedQr(qr, source: 'manual-refresh');
     } on LuminaApiException catch (e) {
       if (!mounted) return;
       setState(() { _isRefreshing = false; });
@@ -1397,6 +1462,25 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
     }
   }
 
+  /// Single place a freshly fetched QR is committed to state + cache. Decodes
+  /// the bytes ONCE ([_qrBytes]) so the displayed image has a stable reference.
+  void _applyFetchedQr(CheckoutQrModel qr, {required String source}) {
+    final isValid = _validateQrImage(qr, source: source);
+    final expiry = _parseQrExpiry(qr);
+    _qrCache[_cacheKey] = qr;
+    _qrExpiryCache[_cacheKey] = expiry;
+    debugPrint('[QR] New QR received — expires at $expiry');
+    setState(() {
+      _qr = qr;
+      _qrBytes = isValid ? qr.imageBytes : null;
+      _expiry = expiry;
+      _isLoading = false;
+      _isRefreshing = false;
+      _isExpired = false;
+      _invalidReason = isValid ? null : _describeInvalidReason(qr);
+    });
+  }
+
   DateTime _parseQrExpiry(CheckoutQrModel qr) {
     final expiresAt = qr.expiresAt;
     if (expiresAt != null && expiresAt.isNotEmpty) {
@@ -1405,41 +1489,6 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
       } catch (_) {}
     }
     return DateTime.now().add(Duration(seconds: qr.ttlSeconds));
-  }
-
-  /// Anchors the countdown to the absolute server [expiry] instant rather than
-  /// decrementing a local counter. Dart's `Timer.periodic` does not fire while
-  /// the app is backgrounded, so a decrement-based counter goes stale and can
-  /// show "still valid" after the app resumes even though the QR expired
-  /// server-side while suspended. Recomputing from the wall-clock difference
-  /// every tick makes the countdown self-correct as soon as it ticks again.
-  void _startCountdown(DateTime expiry) {
-    _countdownTimer?.cancel();
-    _qrExpiryCache[_cacheKey] = expiry;
-
-    void tick() {
-      if (!mounted) return;
-      final remaining = expiry.difference(DateTime.now()).inSeconds;
-      setState(() {
-        if (remaining > 0) {
-          _secondsLeft = remaining;
-          _isExpired = false;
-        } else {
-          _secondsLeft = 0;
-          _isExpired = true;
-          _countdownTimer?.cancel();
-        }
-      });
-    }
-
-    tick();
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) => tick());
-  }
-
-  String get _remainingTimeText {
-    final m = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
-    final s = (_secondsLeft % 60).toString().padLeft(2, '0');
-    return '$m:$s';
   }
 
   Future<void> _enableScreenProtection() async {
@@ -1515,6 +1564,35 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
               ),
             ),
 
+            const SizedBox(height: LuminaSpacing.sm),
+
+            // Borrowing code
+            Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: LuminaSpacing.md, vertical: 6),
+              decoration: BoxDecoration(
+                color: LuminaColors.primary.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(LuminaRadius.full),
+                border: Border.all(color: LuminaColors.primary.withOpacity(0.18)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.confirmation_number_outlined,
+                      size: 15, color: LuminaColors.primary),
+                  const SizedBox(width: LuminaSpacing.xs),
+                  Text(
+                    widget.borrowingCode,
+                    style: LuminaTextStyles.labelMd.copyWith(
+                      color: LuminaColors.primary,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             const SizedBox(height: LuminaSpacing.md),
 
             // Loading state
@@ -1575,44 +1653,18 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
               )
             else ...[
               // Countdown pill
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: LuminaSpacing.md, vertical: LuminaSpacing.xs),
-                decoration: BoxDecoration(
-                  color: _isExpired
-                      ? LuminaColors.error.withOpacity(0.10)
-                      : (_secondsLeft <= 15
-                          ? LuminaColors.error.withOpacity(0.10)
-                          : LuminaColors.secondary.withOpacity(0.10)),
-                  borderRadius: BorderRadius.circular(LuminaRadius.full),
-                  border: Border.all(
-                    color: _isExpired || _secondsLeft <= 15
-                        ? LuminaColors.error.withOpacity(0.28)
-                        : LuminaColors.secondary.withOpacity(0.28),
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _isExpired ? Icons.timer_off_rounded : Icons.timer_rounded,
-                      size: 16,
-                      color: _isExpired || _secondsLeft <= 15
-                          ? LuminaColors.error
-                          : LuminaColors.secondary,
-                    ),
-                    const SizedBox(width: LuminaSpacing.xs),
-                    Text(
-                      _isExpired ? 'QR Kadaluwarsa' : _remainingTimeText,
-                      style: LuminaTextStyles.labelMd.copyWith(
-                        color: _isExpired || _secondsLeft <= 15
-                            ? LuminaColors.error
-                            : LuminaColors.secondary,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
+              // Countdown lives in its own widget: it ticks once a second
+              // WITHOUT rebuilding the sheet (or the QR image), which is what
+              // used to cause the per-second flicker. Keyed by expiry so a
+              // refreshed QR restarts it. Reports expiry back so the QR dim
+              // overlay engages.
+              _QrCountdownPill(
+                key: ValueKey(_expiry),
+                expiry: _expiry!,
+                forceExpired: _isExpired,
+                onExpired: () {
+                  if (mounted && !_isExpired) setState(() => _isExpired = true);
+                },
               ),
 
               const SizedBox(height: LuminaSpacing.md),
@@ -1637,10 +1689,13 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
                         ),
                       ),
                       padding: const EdgeInsets.all(LuminaSpacing.sm),
-                      child: _qr!.imageBytes != null
+                      child: _qrBytes != null
                           ? Image.memory(
-                              _qr!.imageBytes!,
+                              _qrBytes!,
                               fit: BoxFit.contain,
+                              // Hold the last frame while any (identical) bytes
+                              // resolve — no white flash between rebuilds.
+                              gaplessPlayback: true,
                               errorBuilder: (context, error, stackTrace) {
                                 debugPrint('[QR][RENDER] Image.memory failed to decode at render time: $error');
                                 return const Icon(Icons.error_outline_rounded, size: 64, color: LuminaColors.error);
@@ -1747,28 +1802,147 @@ class _BorrowingQrBottomSheetState extends State<_BorrowingQrBottomSheet> {
 
             const SizedBox(height: LuminaSpacing.sm),
 
-            // Tutup button
-            SizedBox(
-              width: double.infinity,
-              height: 44,
-              child: OutlinedButton(
-                onPressed: Get.back,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: LuminaColors.primary,
-                  side: BorderSide(color: LuminaColors.primary.withOpacity(0.24), width: 1),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(LuminaRadius.full)),
-                ),
-                child: Text(
-                  'Tutup',
-                  style: LuminaTextStyles.titleSm.copyWith(
-                    color: LuminaColors.primary,
-                    fontWeight: FontWeight.w900,
+            // View Detail + Close. The sheet is opened from the borrowing's
+            // detail page, so "Lihat Detail" dismisses the sheet to reveal
+            // that page (the QR Detail view) underneath — it is never removed.
+            Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: TextButton.icon(
+                      onPressed: Get.back,
+                      icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                      style: TextButton.styleFrom(
+                        foregroundColor: LuminaColors.primary,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(LuminaRadius.full)),
+                      ),
+                      label: Text(
+                        'Lihat Detail',
+                        style: LuminaTextStyles.titleSm.copyWith(
+                          color: LuminaColors.primary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(width: LuminaSpacing.sm),
+                Expanded(
+                  child: SizedBox(
+                    height: 44,
+                    child: OutlinedButton(
+                      onPressed: Get.back,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: LuminaColors.primary,
+                        side: BorderSide(color: LuminaColors.primary.withOpacity(0.24), width: 1),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(LuminaRadius.full)),
+                      ),
+                      child: Text(
+                        'Tutup',
+                        style: LuminaTextStyles.titleSm.copyWith(
+                          color: LuminaColors.primary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Self-contained 1-second countdown. Owns its own [Timer] so ticking never
+/// rebuilds the parent QR sheet (the old per-second flicker). Anchors to the
+/// absolute [expiry] instant so it self-corrects after the app is backgrounded
+/// (Timer.periodic doesn't fire while suspended). Calls [onExpired] once when
+/// it hits zero; [forceExpired] lets the parent (WS push) mark it expired.
+class _QrCountdownPill extends StatefulWidget {
+  const _QrCountdownPill({
+    super.key,
+    required this.expiry,
+    required this.onExpired,
+    this.forceExpired = false,
+  });
+
+  final DateTime expiry;
+  final VoidCallback onExpired;
+  final bool forceExpired;
+
+  @override
+  State<_QrCountdownPill> createState() => _QrCountdownPillState();
+}
+
+class _QrCountdownPillState extends State<_QrCountdownPill> {
+  Timer? _timer;
+  int _secondsLeft = 0;
+  bool _notified = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _tick() {
+    if (!mounted) return;
+    final remaining = widget.expiry.difference(DateTime.now()).inSeconds;
+    setState(() => _secondsLeft = remaining > 0 ? remaining : 0);
+    if (remaining <= 0) {
+      _timer?.cancel();
+      if (!_notified) {
+        _notified = true;
+        widget.onExpired();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final expired = widget.forceExpired || _secondsLeft <= 0;
+    final danger = expired || _secondsLeft <= 15;
+    final color = danger ? LuminaColors.error : LuminaColors.secondary;
+
+    final m = (_secondsLeft ~/ 60).toString().padLeft(2, '0');
+    final s = (_secondsLeft % 60).toString().padLeft(2, '0');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+          horizontal: LuminaSpacing.md, vertical: LuminaSpacing.xs),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(LuminaRadius.full),
+        border: Border.all(color: color.withOpacity(0.28)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(expired ? Icons.timer_off_rounded : Icons.timer_rounded,
+              size: 16, color: color),
+          const SizedBox(width: LuminaSpacing.xs),
+          Text(
+            expired ? 'QR Kadaluwarsa' : '$m:$s',
+            style: LuminaTextStyles.labelMd.copyWith(
+              color: color,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1973,4 +2147,61 @@ BoxDecoration _cardDecoration() {
       ),
     ],
   );
+}
+
+/// Success animation shown when the two-stage return flow completes, just
+/// before the page auto-navigates back to My Books.
+class _BorrowingCompletedDialog extends StatelessWidget {
+  const _BorrowingCompletedDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: LuminaColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(LuminaRadius.xl),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(LuminaSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.elasticOut,
+              builder: (context, value, child) =>
+                  Transform.scale(scale: value, child: child),
+              child: Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: LuminaColors.secondary.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_rounded,
+                    color: LuminaColors.secondary, size: 44),
+              ),
+            ),
+            const SizedBox(height: LuminaSpacing.md),
+            Text(
+              'Peminjaman Selesai',
+              style: LuminaTextStyles.titleLg.copyWith(
+                color: LuminaColors.primary,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: LuminaSpacing.xs),
+            Text(
+              'Terima kasih! Semua kewajiban telah diselesaikan.',
+              textAlign: TextAlign.center,
+              style: LuminaTextStyles.bodyMd.copyWith(
+                color: LuminaColors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

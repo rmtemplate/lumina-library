@@ -14,6 +14,7 @@ class LuminaBookCard extends StatelessWidget {
     required this.imageUrl,
     required this.isAvailable,
     this.libraryLocation,
+    this.categoryLabel,
     this.width = 160,
     this.imageAspectRatio = 2 / 3,
     this.showRatingBadge = true,
@@ -38,6 +39,7 @@ class LuminaBookCard extends StatelessWidget {
   final String imageUrl;
   final bool isAvailable;
   final String? libraryLocation;
+  final String? categoryLabel;
 
   final double width;
   final double imageAspectRatio;
@@ -61,6 +63,11 @@ class LuminaBookCard extends StatelessWidget {
 
   bool get _hasLibraryLocation {
     final value = libraryLocation;
+    return value != null && value.trim().isNotEmpty;
+  }
+
+  bool get _hasCategory {
+    final value = categoryLabel;
     return value != null && value.trim().isNotEmpty;
   }
 
@@ -134,6 +141,10 @@ class LuminaBookCard extends StatelessWidget {
                           letterSpacing: 0,
                         ),
                       ),
+                      if (_hasCategory) ...[
+                        const SizedBox(height: LuminaSpacing.xs),
+                        _CategoryChip(label: categoryLabel!.trim()),
+                      ],
                       if (_hasLibraryLocation) ...[
                         const SizedBox(height: LuminaSpacing.xs),
                         _LibraryLocationText(
@@ -264,6 +275,35 @@ class _BookCover extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: LuminaColors.secondary.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(LuminaRadius.full),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: LuminaTextStyles.labelMd.copyWith(
+          color: LuminaColors.secondary,
+          fontWeight: FontWeight.w800,
+          fontSize: 11,
+          height: 1,
+          letterSpacing: 0,
+        ),
+      ),
     );
   }
 }

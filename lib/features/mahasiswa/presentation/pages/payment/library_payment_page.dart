@@ -56,6 +56,7 @@ class _LibraryPaymentPageState extends State<LibraryPaymentPage> {
   bool _isProcessingQr = false;
   bool _hasPoppedAfterSuccess = false;
   StreamSubscription<WebSocketEvent>? _wsSubscription;
+  Timer? _pollTimer;
   final GlobalKey _qrBoundaryKey = GlobalKey();
 
   PaymentApiService get _service => Get.find<PaymentApiService>();
@@ -65,12 +66,45 @@ class _LibraryPaymentPageState extends State<LibraryPaymentPage> {
     super.initState();
     _payment = widget.payment;
     _listenToRealtimeEvents();
+    // In local/dev the Midtrans webhook can't reach the server, so payment.*
+    // WS events never fire on their own. Poll the status while pending so the
+    // page (and, via the backend broadcast the poll triggers, the borrow
+    // detail + staff inspection gate) updates automatically — no manual tap.
+    _startPollingIfPending();
   }
 
   @override
   void dispose() {
     _wsSubscription?.cancel();
+    _pollTimer?.cancel();
     super.dispose();
+  }
+
+  void _startPollingIfPending() {
+    _pollTimer?.cancel();
+    if (_payment.isPaid) return;
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => _pollStatusSilently());
+  }
+
+  /// Background status check — no spinner, no toast. Reuses the same
+  /// /payments/{id}/refresh sync as the manual button; when it flips to paid
+  /// the backend fires the broadcast and we celebrate + pop.
+  Future<void> _pollStatusSilently() async {
+    if (_hasPoppedAfterSuccess) return;
+    try {
+      final updated = await _service.refresh(_payment.id);
+      if (!mounted) return;
+      setState(() => _payment = updated);
+
+      if (updated.isPaid) {
+        _pollTimer?.cancel();
+        unawaited(_celebrateAndReturn(amount: updated.totalAmount, orderId: updated.midtransOrderId));
+      } else if (updated.isExpired || updated.status == 'failed' || updated.status == 'cancelled') {
+        _pollTimer?.cancel();
+      }
+    } catch (_) {
+      // transient — keep polling
+    }
   }
 
   void _listenToRealtimeEvents() {
@@ -154,6 +188,7 @@ class _LibraryPaymentPageState extends State<LibraryPaymentPage> {
     );
     if (result != null && mounted) {
       setState(() => _payment = result);
+      _startPollingIfPending();
     }
   }
 

@@ -210,7 +210,7 @@ class _CartItemTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.bookTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: LuminaTextStyles.bodyMd.copyWith(fontWeight: FontWeight.w800)),
+                Text(item.bookTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: LuminaTextStyles.bodyMd.copyWith(color: LuminaColors.onSurface, fontWeight: FontWeight.w800)),
                 Text(item.bookAuthor, maxLines: 1, overflow: TextOverflow.ellipsis, style: LuminaTextStyles.labelMd.copyWith(color: LuminaColors.outline, letterSpacing: 0)),
                 Text(item.itemCode, style: LuminaTextStyles.labelMd.copyWith(color: LuminaColors.secondary, letterSpacing: 0, fontWeight: FontWeight.w700)),
               ],
@@ -289,8 +289,13 @@ class _ManualBookSearchSheetState extends State<_ManualBookSearchSheet> {
                 controller: _controller,
                 autofocus: true,
                 onChanged: _search,
+                style: LuminaTextStyles.bodyMd.copyWith(
+                  color: LuminaColors.onSurface,
+                  fontWeight: FontWeight.w600,
+                ),
                 decoration: InputDecoration(
                   hintText: 'Title, ISBN, barcode, book code, or author',
+                  hintStyle: LuminaTextStyles.bodyMd.copyWith(color: LuminaColors.outline),
                   prefixIcon: const Icon(Icons.search_rounded),
                   filled: true,
                   fillColor: LuminaColors.surfaceContainerLow,
@@ -309,8 +314,16 @@ class _ManualBookSearchSheetState extends State<_ManualBookSearchSheet> {
                           final item = _results[index];
                           return ListTile(
                             leading: const Icon(Icons.menu_book_rounded, color: LuminaColors.primary),
-                            title: Text(item.bookTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text('${item.itemCode} · ${item.bookAuthor}', maxLines: 1, overflow: TextOverflow.ellipsis),
+                            title: Text(item.bookTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: LuminaTextStyles.bodyMd.copyWith(
+                                    color: LuminaColors.onSurface, fontWeight: FontWeight.w700)),
+                            subtitle: Text('${item.itemCode} · ${item.bookAuthor}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: LuminaTextStyles.labelMd.copyWith(
+                                    color: LuminaColors.onSurfaceVariant, letterSpacing: 0)),
                             trailing: const Icon(Icons.add_circle_outline_rounded, color: LuminaColors.secondary),
                             onTap: () {
                               cart.addItem(item);

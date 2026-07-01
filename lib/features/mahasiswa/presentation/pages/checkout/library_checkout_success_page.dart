@@ -71,8 +71,10 @@ class _LibraryCheckoutSuccessPageState
 
     try {
       final service = Get.find<HomeApiService>();
+      // Explicit "Perbarui QR" tap — force a brand-new code.
       final newQr = await service.refreshPickupQr(
         widget.result.borrowing.id,
+        force: true,
       );
       if (!mounted) return;
       setState(() {

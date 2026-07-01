@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import 'package:lumina_library/core/network/lumina_api_exception.dart';
@@ -29,8 +32,12 @@ class StaffScanController extends GetxController {
 
   int get cartCount => _cart.count;
 
-  Future<void> handleScan(BuildContext context, String raw) async {
-    if (isProcessing.value) return;
+  /// Processes one scanned code and returns whether the camera should keep
+  /// scanning. Book scans (added/duplicate/rejected) all return `true` so the
+  /// staff can keep scanning copies into the cart without the camera closing;
+  /// pickup/return leave the camera to their own confirmation flow (`false`).
+  Future<bool> handleScan(BuildContext context, String raw) async {
+    if (isProcessing.value) return true;
     isProcessing.value = true;
 
     try {
@@ -38,24 +45,34 @@ class StaffScanController extends GetxController {
       final type = result['type']?.toString() ?? '';
       final data = result['data'] as Map<String, dynamic>? ?? {};
 
-      if (!context.mounted) return;
+      if (!context.mounted) return true;
 
       switch (type) {
         case 'book_intake':
-          _cart.addItem(StaffBookItemModel.fromScanJson(data));
+          final added = _cart.addItem(StaffBookItemModel.fromScanJson(data));
+          if (added) unawaited(HapticFeedback.mediumImpact());
+          return true;
         case 'book_not_found':
           await _showBookNotFoundDialog(context, (data['raw'] as String?) ?? raw);
+          return true;
         case 'borrowing_pickup':
           await _showPickupSuccess(context, data);
+          return false;
         case 'borrowing_return':
           await Get.to(() => StaffReturnConfirmPage(preview: data));
+          return false;
         default:
           LuminaToast.error('Tipe QR tidak dikenali.');
+          return true;
       }
     } on LuminaApiException catch (e) {
+      // Includes the backend's "book not available / borrowed / lost / ..."
+      // rejection — surface it and keep scanning.
       LuminaToast.error(e.displayMessage);
+      return true;
     } catch (_) {
       LuminaToast.error('Gagal memproses scan. Silakan coba lagi.');
+      return true;
     } finally {
       isProcessing.value = false;
     }
