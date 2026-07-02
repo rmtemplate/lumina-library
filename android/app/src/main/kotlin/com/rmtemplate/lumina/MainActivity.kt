@@ -1,4 +1,4 @@
-package com.example.lumina_library
+package com.rmtemplate.lumina
 
 import io.flutter.embedding.android.FlutterActivity
 

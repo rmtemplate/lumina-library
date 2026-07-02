@@ -17,7 +17,7 @@ class NetworkConfig {
   // Find your machine's LAN IP with `ipconfig` (Windows) / `ifconfig` (Mac/
   // Linux) and make sure the Android device is on the SAME network.
   // ───────────────────────────────────────────────────────────────────────
-  static const AppEnvironment environment = AppEnvironment.local;
+  static const AppEnvironment environment = AppEnvironment.production;
 
   static const String _localHost = '172.20.10.3';
   static const int _localApiPort = 8000;
@@ -35,9 +35,9 @@ class NetworkConfig {
   static const String _stagingWsHost = 'staging-ws.lumina-library.example.com';
   static const String _stagingReverbAppKey = '';
 
-  static const String _productionApiHost = 'https://api.lumina-library.example.com';
-  static const String _productionWsHost = 'ws.lumina-library.example.com';
-  static const String _productionReverbAppKey = '';
+  static const String _productionApiHost = 'https://lumina.rmtemplate.com';
+  static const String _productionWsHost = 'lumina.rmtemplate.com';
+  static const String _productionReverbAppKey = '889364ca26aa9fe6504927eba25d2c2c';
 
   /// True only for [AppEnvironment.local] — gates debug-only UI like the
   /// connection status indicator (see lib/shared/widgets/connection/).
