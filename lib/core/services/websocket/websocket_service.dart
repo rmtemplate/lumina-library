@@ -49,13 +49,22 @@ class WebSocketService extends GetxService with WidgetsBindingObserver {
 
   Timer? _reconnectTimer;
   Timer? _idleWatchdogTimer;
+  Timer? _pingTimer;
   int _reconnectAttempts = 0;
   DateTime _lastMessageAt = DateTime.now();
   bool _manuallyDisconnected = false;
 
   static const int _maxBackoffSeconds = 30;
   static const Duration _idleCheckInterval = Duration(seconds: 10);
-  static const Duration _idleTimeout = Duration(seconds: 45);
+  // Client-side keepalive. Reverb advertises activity_timeout=30, so we ping
+  // before that elapses. Without our own ping the only frames on an idle
+  // channel are the server's own pings (ping_interval=60s) — longer than
+  // _idleTimeout, so the watchdog below would keep killing a perfectly
+  // healthy idle connection and flap it forever.
+  static const Duration _pingInterval = Duration(seconds: 25);
+  // Safety net only, now that we ping: must exceed the server's 60s
+  // ping_interval so a live-but-quiet link is never mistaken for dead.
+  static const Duration _idleTimeout = Duration(seconds: 75);
 
   @override
   void onInit() {
@@ -114,6 +123,7 @@ class WebSocketService extends GetxService with WidgetsBindingObserver {
     _manuallyDisconnected = permanent;
     _reconnectTimer?.cancel();
     _idleWatchdogTimer?.cancel();
+    _pingTimer?.cancel();
     _channelSubscription?.cancel();
     _channel?.sink.close();
     _channel = null;
@@ -200,6 +210,7 @@ class WebSocketService extends GetxService with WidgetsBindingObserver {
         connectionState.value = WebSocketConnectionState.connected;
         _log('Socket Connected (socket_id: $_socketId)');
         _resubscribeAll();
+        _startPing();
         break;
 
       case 'pusher:ping':
@@ -251,6 +262,7 @@ class WebSocketService extends GetxService with WidgetsBindingObserver {
 
   void _handleDisconnect() {
     _idleWatchdogTimer?.cancel();
+    _pingTimer?.cancel();
     _socketId = null;
     _subscribedChannels.clear();
 
@@ -297,6 +309,17 @@ class WebSocketService extends GetxService with WidgetsBindingObserver {
         _channel?.sink.close();
         _handleDisconnect();
       }
+    });
+  }
+
+  /// Sends a `pusher:ping` on an interval shorter than the server's
+  /// advertised activity_timeout, so an idle-but-alive connection keeps
+  /// exchanging frames and the idle watchdog never trips on it. The server's
+  /// `pusher:pong` (or any frame) refreshes `_lastMessageAt` in _onMessage.
+  void _startPing() {
+    _pingTimer?.cancel();
+    _pingTimer = Timer.periodic(_pingInterval, (_) {
+      _send({'event': 'pusher:ping', 'data': {}});
     });
   }
 
