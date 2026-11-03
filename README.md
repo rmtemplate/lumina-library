@@ -1,5 +1,7 @@
 # Lumina Library
 
+Case study: [rmtemplate.com/explore/lumina-library](https://rmtemplate.com/explore/lumina-library)
+
 <p align="center">
   <img src="assets/images/logo/lumina-logo.webp" width="180" alt="Lumina Library Logo"/>
 </p>
